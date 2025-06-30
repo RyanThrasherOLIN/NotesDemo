@@ -1,67 +1,84 @@
-//  NoteStore.swift
-//  NotesDemo
+// NoteStore.swift
 
 import Foundation
+import SwiftUI
 
-struct Note: Identifiable, Hashable, Codable {
-    let id = UUID()
-    var title: String
-    var lines: [String] = []
+// Mirrors exactly what your GET /get_user_notes returns
+private struct ServerNote: Decodable {
+    let folder: String
+    let id: String
+    let note: String
+    let notebook: String
 }
 
-@MainActor
-final class NoteStore: ObservableObject {
-    // Folder → [Note]
-    @Published var notesByFolder: [String: [Note]] = [
-        "Notes": [],
-        "Work":  [],
-        "Personal": []
-    ]
+// Your local Note model—unchanged
+struct Note: Identifiable, Hashable {
+    let id: UUID
+    let title: String
+    var lines: [String]
+}
 
-    // MARK: - Create a new (empty-body) note
+class NoteStore: ObservableObject {
+    @Published var notesByFolder: [String:[Note]] = [:]
+
+    private let deviceID = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
+    private let baseURL   = "http://<YOUR_IP>:8000"
+
+    // Call me on app launch to pull everything down
+    func fetchUserNotes() {
+        guard
+            var comp = URLComponents(string: "\(baseURL)/get_user_notes")
+        else { return }
+        comp.queryItems = [ URLQueryItem(name: "device_id", value: deviceID) ]
+
+        guard let url = comp.url else { return }
+
+        URLSession.shared.dataTask(with: url) { data, _, error in
+            guard
+                error == nil,
+                let data = data,
+                let serverNotes = try? JSONDecoder().decode([ServerNote].self, from: data)
+            else {
+                print("fetchUserNotes failed:", error ?? "invalid data")
+                return
+            }
+
+            // Map each ServerNote → your local Note, grouped by folder
+            var newDict: [String:[Note]] = [:]
+            for s in serverNotes {
+                let local = Note(
+                    id: UUID(),          // or hash s.id however you prefer
+                    title: s.note,
+                    lines: []
+                )
+                newDict[s.folder, default: []].append(local)
+            }
+
+            DispatchQueue.main.async {
+                self.notesByFolder = newDict
+            }
+        }
+        .resume()
+    }
+
+    // Update this to POST device_id & note to your add_note endpoint
     func addNote(title: String, to folder: String) {
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        // 1) update local cache
+        let new = Note(id: UUID(), title: title, lines: [])
+        notesByFolder[folder, default: []].append(new)
 
-        notesByFolder[folder, default: []].append(Note(title: trimmed))
-        Task { await sendSingleLine(trimmed) }            // still ping titles if you want
-    }
-
-    // MARK: - Append a line to a note + sync it
-    func appendLine(_ line: String, to noteID: UUID, in folder: String) {
-        guard var list = notesByFolder[folder] else { return }
-        guard let idx = list.firstIndex(where: { $0.id == noteID }) else { return }
-
-        list[idx].lines.append(line)
-        notesByFolder[folder] = list                     // trigger @Published update
-        Task { await sendSingleLine(line) }              // send to /get_response
-    }
-
-    // MARK: - One-time batch sync (all note bodies) on launch
-    func syncAllNotesToServer() async {
-        let allLines = notesByFolder.values
-            .flatMap { $0 }
-            .flatMap(\.lines)
-
-        guard !allLines.isEmpty else { return }
-
-        let url = URL(string: "http://10.77.0.124:8000/sync_database")!
+        // 2) fire off to server
+        guard let url = URL(string: "\(baseURL)/add_note") else { return }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONEncoder().encode(["notes": allLines])
 
-        do { _ = try await URLSession.shared.data(for: req) }
-        catch { print("Batch sync failed:", error.localizedDescription) }
-    }
+        let body: [String:String] = [
+            "device_id": deviceID,
+            "note": title
+        ]
+        req.httpBody = try? JSONEncoder().encode(body)
 
-    // MARK: - PRIVATE helper to push one line
-    private func sendSingleLine(_ text: String) async {
-        let url = URL(string: "http://10.77.0.124:8000/get_response")!
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONEncoder().encode(["question": text])
-        _ = try? await URLSession.shared.data(for: req)
+        URLSession.shared.dataTask(with: req).resume()
     }
 }
