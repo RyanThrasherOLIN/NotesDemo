@@ -6,12 +6,9 @@
 //
 import Foundation
 
-/// Holds every line you’ve already sent to `/add_note`
 final class HiddenLineStore: ObservableObject {
     @Published private(set) var syncedLines = Set<String>()
 
-    /// Call this with the full set of current lines; it will send
-    /// only the new ones up to your server.
     func sync(_ allLines: [String]) {
         let newLines = Set(allLines).subtracting(syncedLines)
         guard !newLines.isEmpty else { return }

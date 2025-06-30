@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// A circular icon‐only button that carries its own accessibility label.
+// A circular icon‐only button that carries its own accessibility label.
 struct CircleButton: View {
     let image: String
     var bg: Color = .blue
     var fg: Color = .white
-    /// Optional override for what VoiceOver should read.
+    // Optional override for what VoiceOver should read.
     var accessibilityLabel: String? = nil
     let action: () -> Void
 

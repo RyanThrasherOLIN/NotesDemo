@@ -22,7 +22,6 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // MARK: — Main NavigationStack
             NavigationStack(path: $nav.path) {
                 VStack(spacing: 0) {
                     headerBar
@@ -40,7 +39,6 @@ struct ContentView: View {
             .environmentObject(store)
             .environmentObject(hiddenStore)
 
-            // MARK: — Overlays
             if showingSearch {
                 SearchOverlay(isPresented: $showingSearch)
             }
@@ -63,7 +61,6 @@ struct ContentView: View {
         }
     }
 
-    // MARK: Header
     private var headerBar: some View {
         HStack {
             Button {
@@ -86,7 +83,6 @@ struct ContentView: View {
         .padding(.top)
     }
 
-    // MARK: Notes List
     private var notesList: some View {
         List {
             ForEach(store.notesByFolder[currentFolder] ?? [], id: \.id) { note in
@@ -108,7 +104,7 @@ struct ContentView: View {
         .scrollContentBackground(.hidden)
     }
 
-    // MARK: Bottom Toolbar
+    // Bottom Toolbar
     private var bottomButtons: some View {
         HStack(spacing: 30) {
             CircleButton(image: "person", bg: .indigo,
@@ -134,7 +130,7 @@ struct ContentView: View {
         .padding(.bottom)
     }
 
-    // MARK: Helpers
+    // Helpers
     private func deleteRows(_ offsets: IndexSet) {
         guard var list = store.notesByFolder[currentFolder] else { return }
         list.remove(atOffsets: offsets)
