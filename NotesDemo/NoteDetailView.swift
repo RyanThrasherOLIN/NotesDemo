@@ -1,5 +1,3 @@
-// NoteDetailView.swift
-
 import SwiftUI
 
 struct NoteDetailView: View {
@@ -19,13 +17,16 @@ struct NoteDetailView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // Title field with accessibility label
             TextField("Title", text: $draftTitle)
                 .font(.largeTitle.bold())
                 .autocorrectionDisabled(true)
                 .textInputAutocapitalization(.never)
+                .accessibilityLabel("Title here")
 
             Divider()
 
+            // Note body with placeholder and TextEditor
             ZStack(alignment: .topLeading) {
                 if draftBody.isEmpty {
                     Text("Add note here…")
@@ -54,6 +55,8 @@ struct NoteDetailView: View {
                         }
                     }
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Note here")
             .frame(minHeight: 200)
 
             Spacer()
@@ -85,6 +88,3 @@ struct NoteDetailView_Previews: PreviewProvider {
     }
 }
 #endif
-
-
-
