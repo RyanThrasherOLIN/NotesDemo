@@ -13,13 +13,15 @@ struct ContentView: View {
 
     // Folder picker state
     @State private var folders       = ["Notes", "Work", "Personal"]
-    
     @State private var currentFolder = "Notes"
 
     // Overlay state
-    @State private var showingSearch  = false
-    @State private var showingAdd     = false
-    @State private var showingFolders = false
+    @State private var showingSearch   = false
+    @State private var showingAdd      = false
+    @State private var showingFolders  = false
+
+    // ➊ New state to trigger the recording overlay
+    @State private var showingRecorder = false
 
     var body: some View {
         ZStack {
@@ -59,6 +61,11 @@ struct ContentView: View {
                     folders: $folders
                 )
             }
+        }
+        // ➋ Present the recording screen full-screen
+        .fullScreenCover(isPresented: $showingRecorder) {
+            RecordingView(isPresented: $showingRecorder)
+                .ignoresSafeArea()
         }
     }
 
@@ -118,7 +125,8 @@ struct ContentView: View {
 
             CircleButton(image: "mic", bg: .pink,
                          accessibilityLabel: "Record note") {
-                // voice-memo hook
+                // ➌ Show the recorder overlay
+                showingRecorder = true
             }
 
             CircleButton(image: "magnifyingglass", bg: .orange,
