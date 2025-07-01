@@ -1,5 +1,7 @@
+//
 //  ContentView.swift
 //  NotesDemo
+//
 
 import SwiftUI
 
@@ -9,6 +11,7 @@ struct ContentView: View {
 
     // Shared data stores
     @EnvironmentObject private var store: NoteStore
+    @EnvironmentObject private var recordingStore: RecordingStore
     @StateObject private var hiddenStore = HiddenLineStore()
 
     // Folder picker state
@@ -19,9 +22,7 @@ struct ContentView: View {
     @State private var showingSearch   = false
     @State private var showingAdd      = false
     @State private var showingFolders  = false
-
-    // ➊ New state to trigger the recording overlay
-    @State private var showingRecorder = false
+    @State private var showingRecorder = false   // ← recorder flag
 
     var body: some View {
         ZStack {
@@ -37,10 +38,12 @@ struct ContentView: View {
                     destination.asView
                         .environmentObject(store)
                         .environmentObject(hiddenStore)
+                        .environmentObject(recordingStore)
                 }
             }
             .environmentObject(store)
             .environmentObject(hiddenStore)
+            .environmentObject(recordingStore)
 
             if showingSearch {
                 SearchOverlay(isPresented: $showingSearch)
@@ -62,9 +65,10 @@ struct ContentView: View {
                 )
             }
         }
-        // ➋ Present the recording screen full-screen
+        // full-screen record overlay
         .fullScreenCover(isPresented: $showingRecorder) {
             RecordingView(isPresented: $showingRecorder)
+                .environmentObject(recordingStore)
                 .ignoresSafeArea()
         }
     }
@@ -72,9 +76,8 @@ struct ContentView: View {
     // MARK: Header
     private var headerBar: some View {
         HStack {
-            Button {
-                showingFolders = true
-            } label: {
+            Button { showingFolders = true }
+            label: {
                 Image(systemName: "folder")
                     .font(.title2)
             }
@@ -125,7 +128,6 @@ struct ContentView: View {
 
             CircleButton(image: "mic", bg: .pink,
                          accessibilityLabel: "Record note") {
-                // ➌ Show the recorder overlay
                 showingRecorder = true
             }
 
@@ -156,6 +158,7 @@ struct ContentView_Previews: PreviewProvider {
         ContentView()
             .environmentObject(NoteStore())
             .environmentObject(HiddenLineStore())
+            .environmentObject(RecordingStore())
     }
 }
 #endif

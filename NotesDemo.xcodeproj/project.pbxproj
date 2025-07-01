@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		980C7F7A2E14596E0004516A /* SwiftLAME in Frameworks */ = {isa = PBXBuildFile; productRef = 980C7F792E14596E0004516A /* SwiftLAME */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		98ED7DB82E0DD26100EAB137 /* NotesDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NotesDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				980C7F7A2E14596E0004516A /* SwiftLAME in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +70,7 @@
 			);
 			name = NotesDemo;
 			packageProductDependencies = (
+				980C7F792E14596E0004516A /* SwiftLAME */,
 			);
 			productName = NotesDemo;
 			productReference = 98ED7DB82E0DD26100EAB137 /* NotesDemo.app */;
@@ -94,6 +100,9 @@
 			);
 			mainGroup = 98ED7DAF2E0DD26100EAB137;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				980C7F782E14596E0004516A /* XCRemoteSwiftPackageReference "swiftlame" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 98ED7DB92E0DD26100EAB137 /* Products */;
 			projectDirPath = "";
@@ -326,6 +335,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		980C7F782E14596E0004516A /* XCRemoteSwiftPackageReference "swiftlame" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/hidden-spectrum/swiftlame";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		980C7F792E14596E0004516A /* SwiftLAME */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 980C7F782E14596E0004516A /* XCRemoteSwiftPackageReference "swiftlame" */;
+			productName = SwiftLAME;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 98ED7DB02E0DD26100EAB137 /* Project object */;
 }
