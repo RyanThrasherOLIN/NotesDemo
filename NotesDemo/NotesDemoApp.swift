@@ -13,7 +13,7 @@ struct NotesDemoApp: App {
               .environmentObject(store)
               .environmentObject(hiddenStore)
               .task {
-                  // On launch, pull down the user's notes
+                  // <-- this runs once, when the app first shows ContentView
                   store.fetchUserNotes()
               }
         }

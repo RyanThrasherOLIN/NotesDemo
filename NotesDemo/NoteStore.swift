@@ -1,10 +1,12 @@
 // NoteStore.swift
+//  NotesDemo
 
 import Foundation
-import UIKit       // for UIDevice
+import UIKit    // for UIDevice
 import SwiftUI
 
-// Payload you send when adding a note
+// MARK: — Request & Response Models
+
 private struct AddNoteRequest: Codable {
     let device_id: String
     let note: String
@@ -12,7 +14,6 @@ private struct AddNoteRequest: Codable {
     let notebook: String
 }
 
-// Mirror of the JSON you get back from GET /get_user_notes
 private struct ServerNote: Codable {
     let folder: String
     let id: String
@@ -27,71 +28,106 @@ struct Note: Identifiable, Hashable {
 }
 
 class NoteStore: ObservableObject {
-    @Published var notesByFolder: [String:[Note]] = [:]
+    @Published var notesByFolder: [String: [Note]] = [
+        "Notes": [],
+        "Work": [],
+        "Personal": []
+    ]
 
-    private let deviceID = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
-    private let baseURL   = "http://10.77.0.11:5000"
+    // MARK: — Single persistent user ID
+    private let userID: String = {
+        let key = "userID"
+        if let existing = UserDefaults.standard.string(forKey: key) {
+            return existing
+        }
+        let fresh = UUID().uuidString
+        UserDefaults.standard.set(fresh, forKey: key)
+        return fresh
+    }()
 
-    /// Fetches all notes for this device and groups them by folder
+    private let baseURL = "http://10.77.0.11:5000"
+
+    /// Initialize and immediately fetch existing notes
+    init() {
+        fetchUserNotes()
+    }
+
+    /// Fetch all notes for this user and merge into folders
     func fetchUserNotes() {
         guard var components = URLComponents(string: "\(baseURL)/get_user_notes") else {
             return
         }
         components.queryItems = [
-            URLQueryItem(name: "device_id", value: deviceID)
+            URLQueryItem(name: "device_id", value: userID)
         ]
-        guard let url = components.url else { return }
+        guard let url = components.url else {
+            print("❌ Invalid URL for fetchUserNotes")
+            return
+        }
 
+        print("🔄 Fetching notes for userID: \(userID)")
         URLSession.shared.dataTask(with: url) { data, _, error in
-            guard error == nil,
-                  let data = data,
-                  let serverNotes = try? JSONDecoder().decode([ServerNote].self, from: data)
-            else {
-                print("❌ fetchUserNotes failed:", error ?? "invalid data")
+            if let error = error {
+                print("❌ fetchUserNotes error: \(error)")
                 return
             }
-
-            // Group by `folder` field
-            var grouped: [String:[Note]] = [:]
-            for s in serverNotes {
-                let localNote = Note(
-                    id: UUID(),
-                    title: s.note,
-                    lines: []
-                )
-                grouped[s.folder, default: []].append(localNote)
+            guard let data = data else {
+                print("❌ fetchUserNotes: no data returned")
+                return
             }
+            do {
+                let serverNotes = try JSONDecoder().decode([ServerNote].self, from: data)
+                print("✅ fetchUserNotes: fetched \(serverNotes.count) notes")
 
-            DispatchQueue.main.async {
-                self.notesByFolder = grouped
+                // Prepare fresh dictionary with existing UI folders
+                var grouped: [String: [Note]] = [
+                    "Notes": [],
+                    "Work": [],
+                    "Personal": []
+                ]
+
+                for s in serverNotes {
+                    let folderKey = s.folder.lowercased() == "default" ? "Notes" : s.folder
+                    let note = Note(id: UUID(), title: s.note, lines: [])
+                    grouped[folderKey, default: []].append(note)
+                }
+
+                DispatchQueue.main.async {
+                    self.notesByFolder = grouped
+                }
+            } catch {
+                print("❌ fetchUserNotes decode error: \(error)")
             }
         }
         .resume()
     }
 
-    /// Adds a new note both locally and on your server, including folder & notebook
+    /// Add a note locally and on the server
     func addNote(title: String, to folder: String) {
-        // 1) Update local cache immediately
+        // Update local cache immediately
         let newNote = Note(id: UUID(), title: title, lines: [])
         notesByFolder[folder, default: []].append(newNote)
 
-        // 2) Fire off the POST
-        guard let url = URL(string: "\(baseURL)/add_note") else { return }
+        // Prepare request
+        guard let url = URL(string: "\(baseURL)/add_note") else {
+            print("❌ Invalid URL for addNote")
+            return
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let payload = AddNoteRequest(
-            device_id: deviceID,
+            device_id: userID,
             note:      title,
             folder:    folder,
-            notebook:  title    // if your “notebook” field should differ, swap this out
+            notebook:  title
         )
 
         do {
             request.httpBody = try JSONEncoder().encode(payload)
         } catch {
-            print("❌ addNote payload encoding failed:", error)
+            print("❌ addNote payload encoding failed: \(error)")
             return
         }
 

@@ -1,6 +1,8 @@
-// File should be good now 
+// SearchOverlay.swift
+// NotesDemo
 
 import SwiftUI
+import UIKit  // for UIDevice
 
 struct SearchOverlay: View {
     @Binding var isPresented: Bool
@@ -12,16 +14,13 @@ struct SearchOverlay: View {
 
     var body: some View {
         ZStack {
-            // Blurred backdrop
             Rectangle()
                 .fill(.ultraThinMaterial)
                 .ignoresSafeArea()
-                .onTapGesture { isPresented = false }      // dismiss on tap
+                .onTapGesture { isPresented = false }
                 .accessibilityHidden(true)
 
             VStack(spacing: 20) {
-
-                // top bar 
                 HStack {
                     Button {
                         isPresented = false
@@ -36,7 +35,6 @@ struct SearchOverlay: View {
                 .padding(.horizontal, 30)
                 .padding(.top, UIApplication.shared.windows.first?.safeAreaInsets.top ?? 20)
 
-                // search bar
                 HStack {
                     Image(systemName: "magnifyingglass")
                     TextField("Ask your question…", text: $query)
@@ -66,7 +64,7 @@ struct SearchOverlay: View {
                 Spacer()
             }
         }
-        .accessibilityAddTraits(.isModal)            // trap VoiceOver in the modal
+        .accessibilityAddTraits(.isModal)
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 isSearchFieldFocused = true
@@ -79,36 +77,45 @@ struct SearchOverlay: View {
         guard !trimmed.isEmpty else { return }
 
         isLoading = true
-        responseText = ""                            // clear old result
+        responseText = ""
         defer { isLoading = false }
 
         do {
-            _ = try await fetchAIResponseStreaming(question: trimmed)
+            let result = try await fetchAIResponse(question: trimmed)
+            // Display as a single line without brackets
+            await MainActor.run {
+                responseText = result
+            }
         } catch {
-            responseText = "Error: \(error.localizedDescription)"
+            await MainActor.run {
+                responseText = "Error: \(error.localizedDescription)"
+            }
         }
     }
 
-    private func fetchAIResponseStreaming(question: String) async throws -> String {
-        let url = URL(string: "http://10.77.0.124:8000/get_response")!
-        var req  = URLRequest(url: url)
+    private func fetchAIResponse(question: String) async throws -> String {
+        let deviceID = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
+        guard let url = URL(string: "http://10.77.0.11:5000/get_response") else {
+            throw URLError(.badURL)
+        }
+        var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["question": question])
+        let body = ["device_id": deviceID, "question": question]
+        req.httpBody = try JSONEncoder().encode(body)
 
-        let (byteStream, _) = try await URLSession.shared.bytes(for: req)
-
-        var accumulated = ""
-        for try await line in byteStream.lines {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-
-            await MainActor.run {
-                responseText += trimmed + "\n"
-            }
-            accumulated += trimmed + "\n"
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
+            throw URLError(.badServerResponse)
         }
 
-        return accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Decode JSON response into a dictionary
+        if let dict = try? JSONDecoder().decode([String: String].self, from: data),
+           let text = dict["response"] ?? dict["answer"] {
+            return text
+        }
+
+        // Fallback to raw string
+        return String(decoding: data, as: UTF8.self)
     }
 }
