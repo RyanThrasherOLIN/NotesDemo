@@ -13,6 +13,7 @@ struct ContentView: View {
 
     // Folder picker state
     @State private var folders       = ["Notes", "Work", "Personal"]
+    
     @State private var currentFolder = "Notes"
 
     // Overlay state

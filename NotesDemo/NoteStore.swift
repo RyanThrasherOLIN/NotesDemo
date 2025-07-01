@@ -46,15 +46,16 @@ class NoteStore: ObservableObject {
     }()
 
     private let baseURL = "http://10.77.0.11:5000"
+    private var hasFetchedNotes = false    // prevent repeated fetches
 
-    /// Initialize and immediately fetch existing notes
-    init() {
-        fetchUserNotes()
-    }
-
-    /// Fetch all notes for this user and merge into folders
+    /// Fetch all notes for this user once and merge into folders
     func fetchUserNotes() {
+        // Only fetch once
+        guard !hasFetchedNotes else { return }
+        hasFetchedNotes = true
+
         guard var components = URLComponents(string: "\(baseURL)/get_user_notes") else {
+            print("❌ Invalid URLComponents for fetchUserNotes")
             return
         }
         components.queryItems = [
