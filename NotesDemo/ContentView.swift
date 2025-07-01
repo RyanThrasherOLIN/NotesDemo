@@ -61,6 +61,7 @@ struct ContentView: View {
         }
     }
 
+    // MARK: Header
     private var headerBar: some View {
         HStack {
             Button {
@@ -83,12 +84,14 @@ struct ContentView: View {
         .padding(.top)
     }
 
+    // MARK: Notes List
     private var notesList: some View {
         List {
             ForEach(store.notesByFolder[currentFolder] ?? [], id: \.id) { note in
                 NavigationLink(
                     value: NavigationDestination.noteDetail(
-                        note: note.title
+                        folder: currentFolder,
+                        noteTitle: note.title
                     )
                 ) {
                     Text(note.title)
@@ -104,7 +107,7 @@ struct ContentView: View {
         .scrollContentBackground(.hidden)
     }
 
-    // Bottom Toolbar
+    // MARK: Bottom Toolbar
     private var bottomButtons: some View {
         HStack(spacing: 30) {
             CircleButton(image: "person", bg: .indigo,
@@ -130,7 +133,7 @@ struct ContentView: View {
         .padding(.bottom)
     }
 
-    // Helpers
+    // MARK: Helpers
     private func deleteRows(_ offsets: IndexSet) {
         guard var list = store.notesByFolder[currentFolder] else { return }
         list.remove(atOffsets: offsets)
@@ -142,7 +145,7 @@ struct ContentView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
-            .environmentObject(NoteStore())       // or .shared
+            .environmentObject(NoteStore())
             .environmentObject(HiddenLineStore())
     }
 }

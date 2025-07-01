@@ -1,20 +1,19 @@
 import SwiftUI
 
 enum NavigationDestination: Hashable {
-    case noteDetail(note: String)
+    case noteDetail(folder: String, noteTitle: String)
     case settings
 
     @ViewBuilder
     var asView: some View {
         switch self {
-        case let .noteDetail(note):
-            NoteDetailView(note: note)
+        case let .noteDetail(folder, noteTitle):
+            NoteDetailView(folder: folder, noteTitle: noteTitle)
         case .settings:
             SettingsView()
         }
     }
 }
-
 
 final class NavigationStackHandler: ObservableObject {
     static let shared = NavigationStackHandler()

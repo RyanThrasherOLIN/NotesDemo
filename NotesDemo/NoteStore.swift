@@ -1,17 +1,25 @@
 // NoteStore.swift
 
 import Foundation
+import UIKit       // for UIDevice
 import SwiftUI
 
-// Mirrors exactly what your GET /get_user_notes returns
-private struct ServerNote: Decodable {
+// Payload you send when adding a note
+private struct AddNoteRequest: Codable {
+    let device_id: String
+    let note: String
+    let folder: String
+    let notebook: String
+}
+
+// Mirror of the JSON you get back from GET /get_user_notes
+private struct ServerNote: Codable {
     let folder: String
     let id: String
     let note: String
     let notebook: String
 }
 
-// Your local Note model—unchanged
 struct Note: Identifiable, Hashable {
     let id: UUID
     let title: String
@@ -21,64 +29,72 @@ struct Note: Identifiable, Hashable {
 class NoteStore: ObservableObject {
     @Published var notesByFolder: [String:[Note]] = [:]
 
-    private let deviceID = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
-    private let baseURL   = "http://<YOUR_IP>:8000"
+    private let deviceID = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+    private let baseURL   = "http://10.77.0.11:5000"
 
-    // Call me on app launch to pull everything down
+    /// Fetches all notes for this device and groups them by folder
     func fetchUserNotes() {
-        guard
-            var comp = URLComponents(string: "\(baseURL)/get_user_notes")
-        else { return }
-        comp.queryItems = [ URLQueryItem(name: "device_id", value: deviceID) ]
-
-        guard let url = comp.url else { return }
+        guard var components = URLComponents(string: "\(baseURL)/get_user_notes") else {
+            return
+        }
+        components.queryItems = [
+            URLQueryItem(name: "device_id", value: deviceID)
+        ]
+        guard let url = components.url else { return }
 
         URLSession.shared.dataTask(with: url) { data, _, error in
-            guard
-                error == nil,
-                let data = data,
-                let serverNotes = try? JSONDecoder().decode([ServerNote].self, from: data)
+            guard error == nil,
+                  let data = data,
+                  let serverNotes = try? JSONDecoder().decode([ServerNote].self, from: data)
             else {
-                print("fetchUserNotes failed:", error ?? "invalid data")
+                print("❌ fetchUserNotes failed:", error ?? "invalid data")
                 return
             }
 
-            // Map each ServerNote → your local Note, grouped by folder
-            var newDict: [String:[Note]] = [:]
+            // Group by `folder` field
+            var grouped: [String:[Note]] = [:]
             for s in serverNotes {
-                let local = Note(
-                    id: UUID(),          // or hash s.id however you prefer
+                let localNote = Note(
+                    id: UUID(),
                     title: s.note,
                     lines: []
                 )
-                newDict[s.folder, default: []].append(local)
+                grouped[s.folder, default: []].append(localNote)
             }
 
             DispatchQueue.main.async {
-                self.notesByFolder = newDict
+                self.notesByFolder = grouped
             }
         }
         .resume()
     }
 
-    // Update this to POST device_id & note to your add_note endpoint
+    /// Adds a new note both locally and on your server, including folder & notebook
     func addNote(title: String, to folder: String) {
-        // 1) update local cache
-        let new = Note(id: UUID(), title: title, lines: [])
-        notesByFolder[folder, default: []].append(new)
+        // 1) Update local cache immediately
+        let newNote = Note(id: UUID(), title: title, lines: [])
+        notesByFolder[folder, default: []].append(newNote)
 
-        // 2) fire off to server
+        // 2) Fire off the POST
         guard let url = URL(string: "\(baseURL)/add_note") else { return }
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let body: [String:String] = [
-            "device_id": deviceID,
-            "note": title
-        ]
-        req.httpBody = try? JSONEncoder().encode(body)
+        let payload = AddNoteRequest(
+            device_id: deviceID,
+            note:      title,
+            folder:    folder,
+            notebook:  title    // if your “notebook” field should differ, swap this out
+        )
 
-        URLSession.shared.dataTask(with: req).resume()
+        do {
+            request.httpBody = try JSONEncoder().encode(payload)
+        } catch {
+            print("❌ addNote payload encoding failed:", error)
+            return
+        }
+
+        URLSession.shared.dataTask(with: request).resume()
     }
 }
