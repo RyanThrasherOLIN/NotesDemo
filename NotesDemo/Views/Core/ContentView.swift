@@ -1,39 +1,62 @@
-//
-//  ContentView.swift
-//  NotesDemo
-//
-
+///
+/// ContentView.swift
+/// NotesDemo
+///
+/// The main content view of the NotesDemo application.
+/// Presents the folder navigation, list of notes, and bottom toolbar,
+/// and manages presentation of overlays for searching, adding notes,
+/// switching folders, and recording audio notes.
+///
 import SwiftUI
 
+/// The primary view for displaying and interacting with notes.
+///
+/// - Displays a header bar with the current folder name and folder picker.
+/// - Shows a list of notes in the selected folder.
+/// - Provides a bottom toolbar for settings, recording, search, and add-note actions.
+/// - Manages full-screen and overlay presentations for auxiliary views.
 struct ContentView: View {
-    // Navigation
+    // MARK: - Navigation
+    /// Shared navigation stack handler for pushing new view destinations.
     @ObservedObject private var nav = NavigationStackHandler.shared
 
-    // Shared data stores
+    // MARK: - Shared Data Stores
+    /// Central store holding all notes, keyed by folder.
     @EnvironmentObject private var store: NoteStore
+    /// Store managing audio recordings.
     @EnvironmentObject private var recordingStore: RecordingStore
+    /// Store for tracking hidden lines in notes (e.g., synced or searchable lines).
     @StateObject private var hiddenStore = HiddenLineStore()
 
-    // Folder picker state
+    // MARK: - Folder Picker State
+    /// Available note folders (e.g., user categories).
     @State private var folders       = ["Notes", "Work", "Personal"]
+    /// Currently selected folder name.
     @State private var currentFolder = "Notes"
 
-    // Overlay state
+    // MARK: - Overlay Presentation Flags
+    /// Controls presentation of the search overlay.
     @State private var showingSearch   = false
+    /// Controls presentation of the add-note overlay.
     @State private var showingAdd      = false
+    /// Controls presentation of the folder selection overlay.
     @State private var showingFolders  = false
-    @State private var showingRecorder = false   // ← recorder flag
+    /// Controls presentation of the full-screen recording view.
+    @State private var showingRecorder = false
 
+    // MARK: - View Body
     var body: some View {
         ZStack {
+            // Main navigation stack
             NavigationStack(path: $nav.path) {
                 VStack(spacing: 0) {
-                    headerBar
-                    notesList
+                    headerBar    // Top header with folder picker
+                    notesList    // List of notes in folder
                     Spacer()
-                    bottomButtons
+                    bottomButtons // Bottom toolbar for actions
                 }
                 .navigationBarHidden(true)
+                // Define navigation destinations for pushing other views
                 .navigationDestination(for: NavigationDestination.self) { destination in
                     destination.asView
                         .environmentObject(store)
@@ -45,6 +68,7 @@ struct ContentView: View {
             .environmentObject(hiddenStore)
             .environmentObject(recordingStore)
 
+            // Overlays for search, add-note, and folder selection
             if showingSearch {
                 SearchOverlay(isPresented: $showingSearch)
             }
@@ -65,7 +89,7 @@ struct ContentView: View {
                 )
             }
         }
-        // full-screen record overlay
+        // Full-screen cover for audio recording
         .fullScreenCover(isPresented: $showingRecorder) {
             RecordingView(isPresented: $showingRecorder)
                 .environmentObject(recordingStore)
@@ -73,11 +97,14 @@ struct ContentView: View {
         }
     }
 
-    // MARK: Header
+    // MARK: - Header Bar
+    /// A horizontal bar at the top displaying the folder picker and title.
     private var headerBar: some View {
         HStack {
-            Button { showingFolders = true }
-            label: {
+            Button {
+                // Open folder selection overlay
+                showingFolders = true
+            } label: {
                 Image(systemName: "folder")
                     .font(.title2)
             }
@@ -89,13 +116,15 @@ struct ContentView: View {
                 .font(.largeTitle.bold())
                 .frame(maxWidth: .infinity)
 
+            // Maintain symmetrical layout
             Spacer().frame(width: 24)
         }
         .padding(.horizontal)
         .padding(.top)
     }
 
-    // MARK: Notes List
+    // MARK: - Notes List
+    /// A scrollable list of notes for the current folder.
     private var notesList: some View {
         List {
             ForEach(store.notesByFolder[currentFolder] ?? [], id: \.id) { note in
@@ -118,7 +147,8 @@ struct ContentView: View {
         .scrollContentBackground(.hidden)
     }
 
-    // MARK: Bottom Toolbar
+    // MARK: - Bottom Toolbar
+    /// A row of circular buttons for settings, recording, search, and add actions.
     private var bottomButtons: some View {
         HStack(spacing: 30) {
             CircleButton(image: "person", bg: .indigo,
@@ -144,7 +174,10 @@ struct ContentView: View {
         .padding(.bottom)
     }
 
-    // MARK: Helpers
+    // MARK: - Helpers
+    /// Deletes notes from the current folder at the specified offsets.
+    ///
+    /// - Parameter offsets: The index set of rows to remove.
     private func deleteRows(_ offsets: IndexSet) {
         guard var list = store.notesByFolder[currentFolder] else { return }
         list.remove(atOffsets: offsets)
@@ -153,6 +186,7 @@ struct ContentView: View {
 }
 
 #if DEBUG
+/// Preview provider for ContentView, injecting mock environment objects.
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
