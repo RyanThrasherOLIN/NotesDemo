@@ -3,22 +3,29 @@
 /// NotesDemo
 ///
 /// A modal overlay that allows users to enter a query, sends it to a backend AI service,
-/// and displays the asynchronous response. Designed for quick question-and-answer interactions.
+/// and displays the asynchronous response. The request URL is built from `Config.baseURL`,
+/// which reads the user-editable `apiURL` setting.
+///
+/// - Dismissible by tapping outside or tapping the back button.
+/// - Automatically focuses the search field when appearing.
+/// - Shows a loading indicator while awaiting the response.
 ///
 import SwiftUI
 import UIKit  // for obtaining device identifier
 
 /// Overlay view presenting a search field, loading indicator, and result display.
 ///
-/// - Dismissible by tapping outside or using the back button.
-/// - Automatically focuses the search field on appear.
+/// - Uses `Config.baseURL` to build the `/get_response` endpoint dynamically.
 /// - Manages async network requests and error handling.
+///
 struct SearchOverlay: View {
     // MARK: - Presentation Binding
+
     /// Controls visibility of this overlay.
     @Binding var isPresented: Bool
 
     // MARK: - Search State
+
     /// The user's current query text.
     @State private var query = ""
     /// The AI service response text to display.
@@ -29,6 +36,7 @@ struct SearchOverlay: View {
     @FocusState private var isSearchFieldFocused: Bool
 
     // MARK: - View Body
+
     var body: some View {
         ZStack {
             // Dimmed, blurred background that dismisses on tap
@@ -98,6 +106,7 @@ struct SearchOverlay: View {
     }
 
     // MARK: - Networking Methods
+
     /// Trims the query and, if non-empty, sends it to the AI API,
     /// updating the UI with a loading state and the returned text.
     private func performSearch() async {
@@ -120,34 +129,39 @@ struct SearchOverlay: View {
         }
     }
 
-    /// Sends a POST request to the AI backend with device ID and question,
-    /// decodes the response, and returns the answer text.
+    /// Sends a POST request to the AI backend at `/get_response`,
+    /// including the device ID and question, then decodes and returns
+    /// the answer text.
+    ///
     /// - Parameter question: The user-entered query string.
-    /// - Throws: URLError or decoding errors on failure.
+    /// - Throws: `URLError` or decoding errors on failure.
     /// - Returns: The response string from the server.
     private func fetchAIResponse(question: String) async throws -> String {
-        let deviceID = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
-        guard let url = URL(string: "http://10.77.0.11:5000/get_response") else {
-            throw URLError(.badURL)
-        }
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let body = ["device_id": deviceID, "question": question]
-        req.httpBody = try JSONEncoder().encode(body)
+        // Build endpoint dynamically from user-editable API URL
+        let endpoint = Config.baseURL.appendingPathComponent("get_response")
 
-        let (data, response) = try await URLSession.shared.data(for: req)
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Include device identifier for server-side tracking
+        let deviceID = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
+        let body = ["device_id": deviceID, "question": question]
+        request.httpBody = try JSONEncoder().encode(body)
+
+        // Perform network call
+        let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
             throw URLError(.badServerResponse)
         }
 
-        // Attempt to decode standard JSON response
+        // Try decoding { "response": "..."} or { "answer": "..."}
         if let dict = try? JSONDecoder().decode([String: String].self, from: data),
            let text = dict["response"] ?? dict["answer"] {
             return text
         }
 
-        // Fallback: return raw string data
+        // Fallback: return raw text
         return String(decoding: data, as: UTF8.self)
     }
 }

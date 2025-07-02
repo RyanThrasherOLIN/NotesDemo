@@ -2,9 +2,11 @@
 /// SettingsView.swift
 /// NotesDemo
 ///
-/// Provides user-accessible settings and navigation for hidden lines,
-/// audio recordings, and application appearance/notifications.
-/// Also includes views for listing and playing back recordings.
+/// Provides user-accessible settings and navigation for:
+/// - Configuring application appearance and notifications
+/// - Viewing synced hidden lines
+/// - Managing audio recordings
+/// - Specifying the server endpoint URL
 ///
 import SwiftUI
 import AVFoundation
@@ -12,9 +14,10 @@ import AVFoundation
 /// Main settings screen for configuring app preferences and
 /// accessing advanced views.
 ///
-/// - Toggles dark mode and notifications preferences.
+/// - Toggles dark mode, notifications, and server endpoint URL.
 /// - Provides a "Back Door" to view all synced lines.
 /// - Lists recorded audio notes and allows creating new recordings.
+///
 struct SettingsView: View {
     // MARK: - Environment
     /// Store for synced hidden lines
@@ -23,6 +26,8 @@ struct SettingsView: View {
     @EnvironmentObject private var recordingStore: RecordingStore
 
     // MARK: - Persistent Settings
+    /// Base URL for your backend API (stored in UserDefaults)
+    @AppStorage("apiURL") private var apiURL: String = "http://10.77.0.11:5000"
     /// Toggle for dark mode preference (stored in UserDefaults)
     @AppStorage("darkMode") private var darkMode = false
     /// Toggle for enabling/disabling notifications (stored in UserDefaults)
@@ -35,17 +40,27 @@ struct SettingsView: View {
     // MARK: - View Body
     var body: some View {
         Form {
-            // Appearance section: dark mode switch
+            // MARK: Server Configuration
+            Section("Server") {
+                // Allow user to enter custom API URL or IP address
+                TextField("Server URL", text: $apiURL)
+                    .keyboardType(.URL)
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                    .accessibilityLabel("Server URL")
+            }
+
+            // MARK: Appearance section
             Section("Appearance") {
                 Toggle("Dark Mode", isOn: $darkMode)
             }
 
-            // Alerts section: notifications switch
+            // MARK: Alerts section
             Section("Alerts") {
                 Toggle("Enable Notifications", isOn: $notifications)
             }
 
-            // Back Door: view synced hidden lines for debugging or admin
+            // MARK: Back Door section
             Section("Back Door") {
                 NavigationLink("View All Synced Lines") {
                     SyncedLinesView()
@@ -53,7 +68,7 @@ struct SettingsView: View {
                 }
             }
 
-            // Recordings: navigate to list of existing recordings
+            // MARK: Recordings section
             Section("Recordings") {
                 NavigationLink("Your Recordings (\(recordingStore.recordings.count))") {
                     RecordingListView()
@@ -61,16 +76,14 @@ struct SettingsView: View {
                 }
             }
 
-            // Actions: record new audio and log out
+            // MARK: Actions
             Section {
-                // Button to start a new recording session
                 Button("Record New Audio") {
                     showingRecorder = true
                 }
                 .accessibilityLabel("Record new note")
                 .foregroundColor(.blue)
 
-                // Placeholder logout action
                 Button("Log Out") {
                     // your logout logic here
                 }
@@ -79,7 +92,7 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
-        // Present recording overlay when requested
+        // Present the full-screen recording overlay when requested
         .fullScreenCover(isPresented: $showingRecorder) {
             RecordingView(isPresented: $showingRecorder)
                 .environmentObject(recordingStore)
@@ -91,6 +104,7 @@ struct SettingsView: View {
 /// View that lists all audio recordings in the store.
 ///
 /// Displays each recording using `RecordingRowView`.
+///
 struct RecordingListView: View {
     /// Shared recording store
     @EnvironmentObject var recordingStore: RecordingStore
@@ -108,6 +122,7 @@ struct RecordingListView: View {
 ///
 /// - Shows play/stop button and file info.
 /// - Manages playback state using `AVAudioPlayer`.
+///
 private struct RecordingRowView: View {
     /// The recording model to display
     let recording: Recording
@@ -143,7 +158,7 @@ private struct RecordingRowView: View {
 
     /// Toggles playback of the associated recording.
     ///
-    /// - Starts playback if not playing, otherwise stops it.
+    /// - Starts playback if not playing; otherwise stops it.
     private func togglePlay() {
         if isPlaying {
             player?.stop()
