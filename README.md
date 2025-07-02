@@ -1,46 +1,57 @@
+````markdown
 # NotesDemo
 
-**NotesDemo** is a SwiftUI-based iOS app that lets you take text notes and record audio memos right inside the app. Your recordings (in MP3 format) are automatically saved and can be played back from the Settings screen.
+**NotesDemo** is a SwiftUI-based iOS app that lets you take text notes (organized into folders) and record audio memos right inside the app. Recordings are automatically converted to MP3 and can be played back from the Settings screen.
 
 ---
 
 ## Features
 
-* **Text notes** organized into folders (Notes, Work, Personal)
-* **Full‑screen audio recorder** overlay with a big pulsing red record/stop button
-* **Automatic conversion** from M4A to MP3 using SwiftLAME
-* **Playback UI** in Settings: play or stop any saved recording
-* **Dark mode** support & simple Alerts toggle
-* **"Back Door"** view for debugging: list of synced lines from `HiddenLineStore`
+- **Text notes** organized into folders: *Notes*, *Work*, *Personal*  
+- **Line-by-line sync** to your backend via `HiddenLineStore`  
+- **Full-screen audio recorder** overlay with pulsing record/stop button  
+- **M4A → MP3 conversion** using SwiftLAME  
+- **Playback UI** in Settings; play or stop saved memos  
+- **Dark mode** & **Alerts** toggles  
+- **“Back Door”** debug view of all synced lines  
 
 ---
 
 ## Requirements
 
-* Xcode 15+
-* iOS 17+ SDK
-* Swift 5.9
+- Xcode 15+  
+- iOS 17+ SDK  
+- Swift 5.9  
 
 ---
 
 ## Dependencies
 
-* [SwiftLAME](https://github.com/hidden-spectrum/swiftlame) (added via Swift Package Manager)
-* SwiftUI & AVFoundation (built‑in)
+- [SwiftLAME](https://github.com/hidden-spectrum/swiftlame) (via SwiftPM)  
+- SwiftUI & AVFoundation (built-in)  
 
 ---
 
 ## Installation
 
-1. Clone this repo:
-
+1. **Clone the repo**  
    ```bash
    git clone https://github.com/your-username/NotesDemo.git
    cd NotesDemo
+````
+
+2. **Open in Xcode**
+
+   ```bash
+   open NotesDemo.xcodeproj
    ```
-2. Open `NotesDemo.xcodeproj` in Xcode.
-3. In Xcode, go to **File ➔ Add Packages…**, search for `https://github.com/hidden-spectrum/swiftlame`, and add **SwiftLAME** to the NotesDemo target.
-4. Build & run on a simulator or device.
+
+3. **Add SwiftLAME**
+   In Xcode → **File → Add Packages…**, enter
+   `https://github.com/hidden-spectrum/swiftlame` → Add to **NotesDemo** target.
+
+4. **Build & Run**
+   Select a simulator or device and hit ▶️.
 
 ---
 
@@ -55,7 +66,7 @@
 2. **Audio Recording**
 
    * Tap the **mic** button in the bottom toolbar.
-   * A full-screen overlay will appear and start recording immediately.
+   * A full-screen overlay appears and starts recording immediately.
    * Tap the red button again to stop; the recording is converted to MP3 and saved.
 
 3. **Playback**
@@ -66,32 +77,126 @@
 
 4. **Debug Back Door**
 
-   * In Settings, tap **View All Synced Lines** to see `HiddenLineStore`’s contents.
+   * In Settings, tap **View All Synced Lines** to see all lines synced by `HiddenLineStore`.
 
 ---
 
-## File Structure
+## File Layout
 
 ```
-NotesDemoApp.swift         // App entry: injects NoteStore, HiddenLineStore, RecordingStore
-ContentView.swift          // Main UI: folders, notes list, bottom toolbar (Record/Search/Add)
-RecordingStore.swift       // Model & store for Recording items
-RecordingView.swift        // Full-screen record/convert overlay
-SettingsView.swift         // Settings form + Recordings list + Back Door
-HiddenLineStore.swift      // (existing) synced lines store & view
-NoteStore.swift            // (existing) text notes data store
-CircleButton.swift         // (existing) reusable circular button view
-…                          // other helper files
+NotesDemo
+├── App
+│   └── NotesDemoApp.swift
+│
+├── Models
+│   └── Recording.swift
+│
+├── Stores
+│   ├── NoteStore.swift
+│   ├── RecordingStore.swift
+│   └── HiddenLineStore.swift
+│
+├── Views
+│   ├── Core
+│   │   ├── ContentView.swift
+│   │   ├── NoteDetailView.swift
+│   │   └── SettingsView.swift
+│   │
+│   ├── Overlays
+│   │   ├── AddNoteOverlay.swift
+│   │   ├── FolderOverlay.swift
+│   │   ├── SearchOverlay.swift
+│   │   ├── RecordingView.swift
+│   │   └── SyncedLinesView.swift
+│   │
+│   └── Components
+│       └── CircleButton.swift
+│
+├── Navigation
+│   └── NavigationStackHandler.swift
+│
+└── Resources
+    ├── Assets.xcassets
+    └── LaunchScreen.storyboard
 ```
+
+---
+
+## Data Flow: Creating a Text Note
+
+```text
+┌────────────────────────┐
+│   AddNoteOverlay.swift │   1. User enters a title and taps Save
+└──────────────┬─────────┘
+               │ calls onSubmit(title)
+               ▼
+┌────────────────────────┐
+│     NoteStore.swift    │   2. addNote(title:, folder:)
+│ • create Note(id, title, [])
+│ • append to notesByFolder
+│ • POST /add_note → server
+└──────────────┬─────────┘
+               │
+               │  (local UI updates immediately)
+               ▼
+┌────────────────────────┐
+│  ContentView.swift     │   3. List bound to notesByFolder shows new note
+└──────────────┬─────────┘
+               │
+               │  (network)
+               ▼
+     POST /add_note → Your Backend
+     • Payload: { device_id, note, folder, notebook }
+     • Server persists note
+```
+
+1. **AddNoteOverlay.swift** presents a text field and Save/Cancel buttons.
+2. **NoteStore.swift** immediately updates its `notesByFolder` and sends the new note to the server.
+3. **ContentView\.swift** observes `notesByFolder` and renders the new note without delay.
+4. The server receives and stores the note for that device ID, ready to be fetched on next launch.
+
+---
+
+## Retrieving Notes on Launch
+
+In **NotesDemoApp.swift**:
+
+```swift
+.task { store.fetchUserNotes() }
+```
+
+* **NoteStore.fetchUserNotes()**
+
+  * GETs `/get_user_notes?device_id=…`
+  * Decodes server response into `[ServerNote]`
+  * Maps to local `[Note]` and updates `notesByFolder` on the main thread
+
+* **ContentView** then displays the fetched notes automatically.
+
+---
+
+## Line-by-Line Sync
+
+Whenever you press Return in **NoteDetailView\.swift**:
+
+```swift
+hiddenStore.sync(lines, folder: folder, notebook: draftTitle)
+```
+
+* **HiddenLineStore** computes unseen lines and POSTs each to `/add_note`.
+* Successfully synced lines are added to `syncedLines` so duplicates are skipped.
 
 ---
 
 ## Contributing
 
-Pull requests welcome! Feel free to open issues for bugs or feature requests.
+Pull requests and issues welcome!
 
 ---
 
 ## License
 
 [MIT](LICENSE)
+
+```
+```
