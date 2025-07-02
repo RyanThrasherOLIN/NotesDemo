@@ -2,52 +2,49 @@
 /// SearchOverlay.swift
 /// NotesDemo
 ///
-/// A modal overlay that allows users to enter a query, sends it to a backend AI service,
-/// and displays the asynchronous response. The request URL is built from `Config.baseURL`,
-/// which reads the user-editable `apiURL` setting.
+/// A true modal overlay that lets users enter a query, sends it to a backend AI service,
+/// and displays the async response.
+/// Hides all background content from VoiceOver and moves focus to the search field.
 ///
 /// - Dismissible by tapping outside or tapping the back button.
-/// - Automatically focuses the search field when appearing.
-/// - Shows a loading indicator while awaiting the response.
+/// - Automatically focuses and announces the search field on appear.
+/// - Treats itself as a modal to block underlying UI for accessibility.
 ///
 import SwiftUI
-import UIKit  // for obtaining device identifier
+import UIKit  // for UIAccessibility
 
-/// Overlay view presenting a search field, loading indicator, and result display.
-///
-/// - Uses `Config.baseURL` to build the `/get_response` endpoint dynamically.
-/// - Manages async network requests and error handling.
-///
 struct SearchOverlay: View {
     // MARK: - Presentation Binding
 
-    /// Controls visibility of this overlay.
+    /// Controls whether this overlay is shown.
     @Binding var isPresented: Bool
 
     // MARK: - Search State
 
-    /// The user's current query text.
-    @State private var query = ""
-    /// The AI service response text to display.
-    @State private var responseText = ""
-    /// Loading state while waiting for the response.
-    @State private var isLoading = false
-    /// Focus state for automatically focusing the text field.
+    /// The user's current search query.
+    @State private var query: String = ""
+    /// The AI response text.
+    @State private var responseText: String = ""
+    /// Whether a request is in progress.
+    @State private var isLoading: Bool = false
+    /// Focus binding for the TextField.
     @FocusState private var isSearchFieldFocused: Bool
 
     // MARK: - View Body
 
     var body: some View {
         ZStack {
-            // Dimmed, blurred background that dismisses on tap
+            // MARK: Background
+            // Dimmed, blurred tap‐to‐dismiss background, hidden from VoiceOver
             Rectangle()
                 .fill(.ultraThinMaterial)
                 .ignoresSafeArea()
                 .onTapGesture { isPresented = false }
                 .accessibilityHidden(true)
 
+            // MARK: Main Container
             VStack(spacing: 20) {
-                // Top bar with back button
+                // Top bar with Close button
                 HStack {
                     Button {
                         isPresented = false
@@ -60,27 +57,27 @@ struct SearchOverlay: View {
                     Spacer()
                 }
                 .padding(.horizontal, 30)
-                // Account for safe area inset on top
                 .padding(.top, UIApplication.shared.windows.first?.safeAreaInsets.top ?? 20)
 
-                // Search input field
+                // Search field
                 HStack {
                     Image(systemName: "magnifyingglass")
                     TextField("Ask your question…", text: $query)
                         .focused($isSearchFieldFocused)
                         .submitLabel(.go)
-                        .onSubmit {
-                            Task { await performSearch() }
-                        }
+                        .onSubmit { Task { await performSearch() } }
+                        .accessibilityLabel("Search field")
+                        .accessibilityHint("Type your question and press Go")
                 }
                 .padding()
                 .background(.regularMaterial)
                 .cornerRadius(12)
                 .padding(.horizontal)
 
-                // Loading indicator or response display
+                // Loading indicator or results
                 if isLoading {
                     ProgressView()
+                        .accessibilityLabel("Loading")
                 } else if !responseText.isEmpty {
                     ScrollView {
                         Text(responseText)
@@ -91,24 +88,27 @@ struct SearchOverlay: View {
                     .background(.thickMaterial)
                     .cornerRadius(12)
                     .padding(.horizontal)
+                    .accessibilityLabel("Search results")
                 }
 
                 Spacer()
             }
+            // Treat the VStack as one modal accessibility element
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(.isModal)
         }
-        .accessibilityAddTraits(.isModal)
-        // Auto-focus the search field shortly after appearing
+        // On appear, focus the search field and notify VoiceOver
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 isSearchFieldFocused = true
+                UIAccessibility.post(notification: .layoutChanged, argument: nil)
             }
         }
     }
 
-    // MARK: - Networking Methods
+    // MARK: - Networking
 
-    /// Trims the query and, if non-empty, sends it to the AI API,
-    /// updating the UI with a loading state and the returned text.
+    /// Performs the search: trims input, shows loading, calls the API, then updates UI.
     private func performSearch() async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -119,49 +119,34 @@ struct SearchOverlay: View {
 
         do {
             let result = try await fetchAIResponse(question: trimmed)
-            await MainActor.run {
-                responseText = result
-            }
+            await MainActor.run { responseText = result }
         } catch {
-            await MainActor.run {
-                responseText = "Error: \(error.localizedDescription)"
-            }
+            await MainActor.run { responseText = "Error: \(error.localizedDescription)" }
         }
     }
 
-    /// Sends a POST request to the AI backend at `/get_response`,
-    /// including the device ID and question, then decodes and returns
-    /// the answer text.
-    ///
-    /// - Parameter question: The user-entered query string.
-    /// - Throws: `URLError` or decoding errors on failure.
-    /// - Returns: The response string from the server.
+    /// Sends a POST to `/get_response` with `device_id` and `question`, returns the answer.
     private func fetchAIResponse(question: String) async throws -> String {
-        // Build endpoint dynamically from user-editable API URL
         let endpoint = Config.baseURL.appendingPathComponent("get_response")
+        var req = URLRequest(url: endpoint)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        // Include device identifier for server-side tracking
         let deviceID = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
         let body = ["device_id": deviceID, "question": question]
-        request.httpBody = try JSONEncoder().encode(body)
+        req.httpBody = try JSONEncoder().encode(body)
 
-        // Perform network call
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard let code = (resp as? HTTPURLResponse)?.statusCode, 200..<300 ~= code else {
             throw URLError(.badServerResponse)
         }
 
-        // Try decoding { "response": "..."} or { "answer": "..."}
-        if let dict = try? JSONDecoder().decode([String: String].self, from: data),
+        // Try decoding JSON {"response":...} or {"answer":...}
+        if let dict = try? JSONDecoder().decode([String:String].self, from: data),
            let text = dict["response"] ?? dict["answer"] {
             return text
         }
-
-        // Fallback: return raw text
+        // Fallback to raw string
         return String(decoding: data, as: UTF8.self)
     }
 }
