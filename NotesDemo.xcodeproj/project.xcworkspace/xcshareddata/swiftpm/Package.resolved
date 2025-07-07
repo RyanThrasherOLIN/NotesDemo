@@ -1,0 +1,15 @@
+{
+  "originHash" : "ac34a079015b36973783c97703bdf266028fd7a73e5b58c5261b891714c25140",
+  "pins" : [
+    {
+      "identity" : "swiftlame",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/hidden-spectrum/swiftlame",
+      "state" : {
+        "revision" : "45d1b021c2bd2bbd38b9669934c0584cda0d1b6b",
+        "version" : "0.1.0"
+      }
+    }
+  ],
+  "version" : 3
+}
