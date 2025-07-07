@@ -1,12 +1,12 @@
-///
-/// AddNoteOverlay.swift
-/// NotesDemo
-///
-/// A modal overlay allowing users to enter a new note title.
-/// Returns the submitted note string via the provided callback.
-/// Dismisses itself on background tap, Cancel, or Save.
-///
+// AddNoteOverlay.swift
+// NotesDemo
+//
+// A modal overlay allowing users to enter a new note title.
+// Returns the submitted note string via the provided callback.
+// Dismisses itself on background tap, Cancel, or Save.
+
 import SwiftUI
+import UIKit  // for UIAccessibility
 
 /// Overlay presenting a text field for creating a new note.
 ///
@@ -14,24 +14,22 @@ import SwiftUI
 /// - Calls `onSubmit` with the trimmed input when the user saves.
 struct AddNoteOverlay: View {
     // MARK: - Presentation Binding
-    /// Binding to control whether the overlay is shown.
     @Binding var isPresented: Bool
 
     // MARK: - Submission Handler
-    /// Callback invoked with the new note text when the user saves.
     var onSubmit: (String) -> Void
 
     // MARK: - Internal State
-    /// Editable text for the new note draft.
     @State private var draft = ""
+    @FocusState private var textFieldFocused: Bool
 
-    // MARK: - View Body
     var body: some View {
         ZStack {
-            // Dimmed, blurred background that dismisses on tap
+            // Dimmed, blurred background that dismisses on tap, but hidden from VoiceOver
             Rectangle()
                 .fill(.ultraThinMaterial)
                 .ignoresSafeArea()
+                .accessibilityHidden(true)
                 .onTapGesture { isPresented = false }
 
             // Card-like container for input and actions
@@ -39,12 +37,10 @@ struct AddNoteOverlay: View {
                 // Top action bar with Cancel and Save buttons
                 HStack {
                     Button("Cancel") {
-                        // Dismiss without saving
                         isPresented = false
                     }
                     Spacer()
                     Button("Save") {
-                        // Commit the draft and dismiss
                         commitAndDismiss()
                     }
                     .fontWeight(.bold)
@@ -57,17 +53,27 @@ struct AddNoteOverlay: View {
                     .padding()
                     .submitLabel(.done)
                     .onSubmit { commitAndDismiss() }
+                    .focused($textFieldFocused)
             }
             .padding()
             .background(.thinMaterial)
             .cornerRadius(12)
             .padding()
+            // Trap VoiceOver focus inside this card
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(.isModal)
+            .onAppear {
+                // send VoiceOver cursor to the text field
+                textFieldFocused = true
+                UIAccessibility.post(
+                    notification: .screenChanged,
+                    argument: UIAccessibility.focusedElement(using: .notificationVoiceOver) ?? nil
+                )
+            }
         }
     }
 
     // MARK: - Helper Methods
-    /// Trims whitespace/newlines and calls `onSubmit` if non-empty,
-    /// then dismisses the overlay.
     private func commitAndDismiss() {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
