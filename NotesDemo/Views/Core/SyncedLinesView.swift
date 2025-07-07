@@ -1,19 +1,21 @@
+// SyncedLinesView.swift
+// Displays all messages currently synced in HiddenLineStore
+
 import SwiftUI
 
-/// Displays all unique message IDs currently synced in HiddenLineStore.
-/// Useful for inspecting/debugging which message IDs have been synced.
 struct SyncedLinesView: View {
-    // MARK: - Environment
     @EnvironmentObject private var hiddenStore: HiddenLineStore
 
-    // MARK: - View Body
     var body: some View {
         List {
-            // Convert the set of syncedIDs to a sorted array for consistent order
-            ForEach(Array(hiddenStore.syncedIDs).sorted(), id: \.self) { id in
-                Text(id)
-                    .padding(.vertical, 4)
-                    .accessibilityLabel("Synced ID: \(id)")
+            ForEach(hiddenStore.syncedMessages) { msg in
+                HStack(alignment: .top, spacing: 8) {
+                    Text(msg.id.uuidString)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(msg.text)
+                }
+                .padding(.vertical, 4)
             }
         }
         .navigationTitle("Synced Messages")

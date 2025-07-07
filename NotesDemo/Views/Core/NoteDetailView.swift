@@ -1,13 +1,12 @@
-///
-/// NoteDetailView.swift
-/// NotesDemo
-///
-/// Chat-style detail view for a single note:
-/// - Editable title at top
-/// - Scrollable list of sent messages in blue bubbles
-/// - Inline edit & delete on each bubble
-/// - Input bar at bottom with a rounded-border text field and send button
-///
+// NoteDetailView.swift
+// NotesDemo
+//
+// Chat-style detail view for a single note:
+// - Editable title at top
+// - Scrollable list of sent messages in blue bubbles
+// - Inline edit & delete on each bubble
+// - Input bar at bottom with a rounded-border text field and send button
+
 import SwiftUI
 
 // MARK: - Model
@@ -20,7 +19,7 @@ struct ChatMessage: Identifiable, Codable, Equatable {
 struct NoteDetailView: View {
     // MARK: Inputs
     let folder: String
-    let noteTitle: String             // key for storing this note’s messages
+    let noteTitle: String             // original key for storing this note’s messages
 
     // MARK: Environment
     @EnvironmentObject private var hiddenStore: HiddenLineStore
@@ -173,14 +172,7 @@ struct NoteDetailView: View {
 
         let msg = ChatMessage(id: UUID(), text: trimmed)
         messages.append(msg)
-        persistMessages()
-
-        hiddenStore.syncSingleMessage(
-            id: msg.id.uuidString,
-            text: msg.text,
-            folder: folder,
-            notebook: noteTitle
-        )
+        persistAndSyncAllMessages()
 
         newMessage = ""
         inputFocused = true
@@ -192,13 +184,7 @@ struct NoteDetailView: View {
         else { return }
 
         messages[idx].text = editingText
-        persistMessages()
-
-        // Updated to match HiddenLineStore signature
-        hiddenStore.updateMessage(
-            id: id.uuidString,
-            newText: editingText
-        )
+        persistAndSyncAllMessages()
 
         editingId = nil
         editingText = ""
@@ -207,18 +193,26 @@ struct NoteDetailView: View {
 
     private func deleteMessage(id: UUID) {
         messages.removeAll { $0.id == id }
-        persistMessages()
-
-        // Updated to match HiddenLineStore signature
-        hiddenStore.deleteMessage(id: id.uuidString)
+        persistAndSyncAllMessages()
 
         if editingId == id { editingId = nil }
         inputFocused = true
     }
 
-    private func persistMessages() {
+    // MARK: - Helper
+    private func persistAndSyncAllMessages() {
+        // Persist locally under the current draftTitle
         if let data = try? JSONEncoder().encode(messages) {
-            UserDefaults.standard.set(data, forKey: noteTitle)
+            UserDefaults.standard.set(data, forKey: draftTitle)
+        }
+        // Upsert each message on server
+        for msg in messages {
+            hiddenStore.syncSingleMessage(
+                id: msg.id.uuidString,
+                text: msg.text,
+                folder: folder,
+                notebook: draftTitle
+            )
         }
     }
 }
