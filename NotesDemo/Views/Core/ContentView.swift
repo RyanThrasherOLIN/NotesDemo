@@ -33,7 +33,6 @@ struct ContentView: View {
     @State private var folders       = ["Notes", "Work", "Personal"]
     /// Currently selected folder name.
     @State private var currentFolder = "Notes"
-
     // MARK: - Overlay Presentation Flags
     /// Controls presentation of the search overlay.
     @State private var showingSearch   = false

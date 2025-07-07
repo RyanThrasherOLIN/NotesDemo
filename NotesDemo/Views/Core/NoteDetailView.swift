@@ -1,12 +1,3 @@
-// NoteDetailView.swift
-// NotesDemo
-//
-// Chat-style detail view for a single note:
-// - Editable title at top
-// - Scrollable list of sent messages in blue bubbles
-// - Inline edit & delete on each bubble
-// - Input bar at bottom with a rounded-border text field and send button
-
 import SwiftUI
 
 // MARK: - Model
@@ -19,7 +10,7 @@ struct ChatMessage: Identifiable, Codable, Equatable {
 struct NoteDetailView: View {
     // MARK: Inputs
     let folder: String
-    let noteTitle: String             // original key for storing this note’s messages
+    let noteTitle: String            // original key for storing this note’s messages
 
     // MARK: Environment
     @EnvironmentObject private var hiddenStore: HiddenLineStore
@@ -70,8 +61,8 @@ struct NoteDetailView: View {
                                 .id(msg.id)
                         }
                     }
-                    .padding(.horizontal)
                 }
+                .padding(.vertical, 8)
                 .onChange(of: messages) { _ in
                     withAnimation {
                         if let last = messages.last {
@@ -109,38 +100,41 @@ struct NoteDetailView: View {
     // MARK: Message Row
     @ViewBuilder
     private func messageRow(for msg: ChatMessage) -> some View {
-        HStack {
-            Spacer(minLength: 16)
-
-            if editingId == msg.id {
-                // Inline edit mode
+        if editingId == msg.id {
+            // Inline edit mode aligned to right
+            HStack {
+                Spacer()
                 HStack(spacing: 8) {
                     TextField("", text: $editingText)
                         .padding(12)
-                        .background(Color.white)
+                        .background(Color(UIColor.systemBackground))
                         .cornerRadius(16)
                         .focused($editingFocused)
                         .onAppear { editingFocused = true }
 
                     Button(action: saveEdit) {
-                        Image(systemName: "checkmark.circle")
+                        Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 22))
                     }
                     .accessibilityLabel("Save edits")
+                    .padding(.horizontal, 8)
 
                     Button(role: .destructive) {
                         deleteMessage(id: msg.id)
                     } label: {
-                        Image(systemName: "trash.circle")
+                        Image(systemName: "trash.circle.fill")
                             .font(.system(size: 22))
                     }
                     .accessibilityLabel("Delete message")
+                    .padding(.trailing, 8)
                 }
-                .padding(.horizontal)
-
-            } else {
-                // Normal display mode
-                HStack(spacing: 4) {
+                .padding(.trailing, 16)
+            }
+        } else {
+            // Normal display mode aligned to right
+            HStack {
+                Spacer()
+                HStack(spacing: 8) {
                     Text(msg.text)
                         .padding(12)
                         .background(Color.blue)
@@ -148,20 +142,35 @@ struct NoteDetailView: View {
                         .cornerRadius(16)
                         .accessibilityLabel(Text(msg.text))
 
+                    // Edit button with extra breathing room
                     Button(action: {
                         editingId = msg.id
                         editingText = msg.text
                     }) {
-                        Image(systemName: "pencil.circle")
-                            .font(.system(size: 18))
-                            .opacity(0.6)
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.system(size: 20))
                     }
-                    .accessibilityLabel("Edit message")
+                    .foregroundColor(.blue)
+                    .padding(.trailing, 8)
                 }
-                .padding(.horizontal)
-            }
+                .padding(.trailing, 16)
+                // Alternative: use swipe actions for more elegant edit/delete
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button {
+                        editingId = msg.id
+                        editingText = msg.text
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
+                    .tint(.blue)
 
-            Spacer(minLength: 16)
+                    Button(role: .destructive) {
+                        deleteMessage(id: msg.id)
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
+            }
         }
     }
 
@@ -227,3 +236,4 @@ struct NoteDetailView_Previews: PreviewProvider {
     }
 }
 #endif
+
