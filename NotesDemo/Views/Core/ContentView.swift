@@ -50,7 +50,8 @@ struct ContentView: View {
             NavigationStack(path: $nav.path) {
                 VStack(spacing: 0) {
                     headerBar    // Top header with folder picker
-                    notesList    // List of notes in folder
+                    NoteList(currentFolder: $currentFolder, store: store)
+                    // notesList    // List of notes in folder
                     Spacer()
                     bottomButtons // Bottom toolbar for actions
                 }
@@ -124,27 +125,27 @@ struct ContentView: View {
 
     // MARK: - Notes List
     /// A scrollable list of notes for the current folder.
-    private var notesList: some View {
-        List {
-            ForEach(store.notesByFolder[currentFolder] ?? [], id: \.id) { note in
-                NavigationLink(
-                    value: NavigationDestination.noteDetail(
-                        folder: currentFolder,
-                        noteTitle: note.title
-                    )
-                ) {
-                    Text(note.title)
-                        .font(.title2)
-                        .padding(.vertical, 6)
-                }
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-            }
-            .onDelete(perform: deleteRows)
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-    }
+//    private var notesList: some View {
+//        List {
+//            ForEach(store.notesByFolder[currentFolder] ?? [], id: \.id) { note in
+//                NavigationLink(
+//                    value: NavigationDestination.noteDetail(
+//                        folder: currentFolder,
+//                        noteTitle: note.title
+//                    )
+//                ) {
+//                    Text(note.title)
+//                        .font(.title2)
+//                        .padding(.vertical, 6)
+//                }
+//                .listRowSeparator(.hidden)
+//                .listRowBackground(Color.clear)
+//            }
+//            .onDelete(perform: deleteRows)
+//        }
+//        .listStyle(.plain)
+//        .scrollContentBackground(.hidden)
+//    }
 
     // MARK: - Bottom Toolbar
     /// A row of circular buttons for settings, recording, search, and add actions.
@@ -173,6 +174,34 @@ struct ContentView: View {
         .padding(.bottom)
     }
 
+
+}
+
+struct NoteList: View {
+    @Binding var currentFolder: String
+    @ObservedObject var store: NoteStore
+    
+    var body: some View {
+        List {
+            ForEach(store.notesByFolder[currentFolder] ?? [], id: \.id) { note in
+                NavigationLink(
+                    value: NavigationDestination.noteDetail(
+                        folder: currentFolder,
+                        noteTitle: note.title
+                    )
+                ) {
+                    Text(note.title)
+                        .font(.title2)
+                        .padding(.vertical, 6)
+                }
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            }
+            .onDelete(perform: deleteRows)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
     // MARK: - Helpers
     /// Deletes notes from the current folder at the specified offsets.
     ///

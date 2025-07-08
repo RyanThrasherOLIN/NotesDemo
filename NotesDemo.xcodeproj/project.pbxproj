@@ -14,9 +14,22 @@
 		98ED7DB82E0DD26100EAB137 /* EchoMinds.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EchoMinds.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		9881A62A2E1D6AF1004D1F30 /* Exceptions for "NotesDemo" folder in "NotesDemo" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 98ED7DB72E0DD26100EAB137 /* NotesDemo */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		98ED7DBA2E0DD26100EAB137 /* NotesDemo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				9881A62A2E1D6AF1004D1F30 /* Exceptions for "NotesDemo" folder in "NotesDemo" target */,
+			);
 			path = NotesDemo;
 			sourceTree = "<group>";
 		};
@@ -265,6 +278,7 @@
 				DEVELOPMENT_TEAM = 787TUDMR8Q;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NotesDemo/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = EchoMinds;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need this to record your notes";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -295,6 +309,7 @@
 				DEVELOPMENT_TEAM = 787TUDMR8Q;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NotesDemo/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = EchoMinds;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need this to record your notes";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
