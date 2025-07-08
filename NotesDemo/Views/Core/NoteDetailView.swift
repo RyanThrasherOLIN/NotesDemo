@@ -1,41 +1,34 @@
 import SwiftUI
 
-// NoteDetailView.swift
-// Displays and edits a list of ChatMessage objects (with String IDs) in a chat-style UI
-
+/// Displays and edits a list of ChatMessage objects (with server String IDs) in a chat-style UI
 struct NoteDetailView: View {
     // MARK: Inputs
     let folder: String
-    let noteTitle: String            // key for storing this note’s messages
+    let noteTitle: String            // key for this notebook
 
-    // MARK: Environment
+    // MARK: Environment Store
     @EnvironmentObject private var hiddenStore: HiddenLineStore
 
-    // MARK: State
-    @State private var draftTitle: String = ""
-    @State private var messages: [ChatMessage] = []
+    // MARK: Local State
     @State private var newMessage: String = ""
-
-    // Focus states
+    @State private var editingId: String? = nil
+    @State private var editingText: String = ""
     @FocusState private var inputFocused: Bool
     @FocusState private var editingFocused: Bool
 
-    // Inline editing state
-    @State private var editingId: String? = nil
-    @State private var editingText: String = ""
+    // drive messages off the store directly
+    private var messages: [ChatMessage] { hiddenStore.syncedMessages }
 
-    // MARK: Body
     var body: some View {
         VStack(spacing: 0) {
-            // Editable title
-            TextField("Title", text: $draftTitle)
+            // Editable notebook title
+            Text(noteTitle)
                 .font(.largeTitle.bold())
                 .padding()
-                .accessibilityLabel("Note title")
 
             Divider()
 
-            // Messages list
+            // Chat bubbles
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 8) {
@@ -66,39 +59,27 @@ struct NoteDetailView: View {
                 Button(action: sendMessage) {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 28))
-                        .foregroundColor(
-                            newMessage.trimmingCharacters(in: .whitespaces).isEmpty ? .gray : .blue
-                        )
+                        .foregroundColor(newMessage.trimmingCharacters(in: .whitespaces).isEmpty ? .gray : .blue)
                 }
                 .disabled(newMessage.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .padding()
-            .background(
-                Color(UIColor.systemBackground)
-                    .ignoresSafeArea(edges: .bottom)
-            )
+            .background(Color(UIColor.systemBackground).ignoresSafeArea(edges: .bottom))
         }
-        .navigationTitle(draftTitle)
+        .navigationTitle(noteTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            draftTitle = noteTitle
-            loadLocalMessages()
-            inputFocused = true
-            Task {
-                // fetch actual server notes & IDs
-                await hiddenStore.fetchMessages(folder: folder, notebook: noteTitle)
-            }
-        }
-        // whenever store updates, replace local messages
-        .onReceive(hiddenStore.$syncedMessages) { fetched in
-            messages = fetched
+        // fetch when the view first appears or the notebook changes
+        .task(id: noteTitle) {
+            await hiddenStore.fetchMessages(folder: folder, notebook: noteTitle)
+            DispatchQueue.main.async { inputFocused = true }
         }
     }
 
-    // MARK: - Message Row
+    // MARK: Message Row
     @ViewBuilder
     private func messageRow(for msg: ChatMessage) -> some View {
         if editingId == msg.id {
+            // Inline editing
             HStack {
                 Spacer()
                 HStack(spacing: 8) {
@@ -110,20 +91,19 @@ struct NoteDetailView: View {
                         .onAppear { editingFocused = true }
 
                     Button(action: saveEdit) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 22))
+                        Image(systemName: "checkmark.circle.fill").font(.system(size: 22))
                     }
                     .accessibilityLabel("Save edits")
 
                     Button(role: .destructive) { deleteMessage(id: msg.id) } label: {
-                        Image(systemName: "trash.circle.fill")
-                            .font(.system(size: 22))
+                        Image(systemName: "trash.circle.fill").font(.system(size: 22))
                     }
                     .accessibilityLabel("Delete message")
                 }
                 .padding(.trailing, 16)
             }
         } else {
+            // Display
             HStack {
                 Spacer()
                 HStack(spacing: 8) {
@@ -137,17 +117,14 @@ struct NoteDetailView: View {
                         editingId = msg.id
                         editingText = msg.text
                     }) {
-                        Image(systemName: "pencil.circle.fill")
-                            .font(.system(size: 20))
+                        Image(systemName: "pencil.circle.fill").font(.system(size: 20))
                     }
                 }
                 .padding(.trailing, 16)
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button { editingId = msg.id; editingText = msg.text } label: {
                         Label("Edit", systemImage: "pencil")
-                    }
-                    .tint(.blue)
-
+                    }.tint(.blue)
                     Button(role: .destructive) { deleteMessage(id: msg.id) } label: {
                         Label("Delete", systemImage: "trash")
                     }
@@ -156,54 +133,28 @@ struct NoteDetailView: View {
         }
     }
 
-    // MARK: - Actions
-    private func loadLocalMessages() {
-        if let data = UserDefaults.standard.data(forKey: noteTitle),
-           let saved = try? JSONDecoder().decode([ChatMessage].self, from: data) {
-            messages = saved
-        }
-    }
-
+    // MARK: Actions
     private func sendMessage() {
-        let trimmed = newMessage.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
-        let temp = ChatMessage(id: UUID().uuidString, text: trimmed)
-        messages.append(temp)
-        persistAndSyncAllMessages()
+        let text = newMessage.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return }
+        let tempID = UUID().uuidString
+        hiddenStore.syncSingleMessage(id: tempID, text: text, folder: folder, notebook: noteTitle)
         newMessage = ""
         inputFocused = true
     }
 
     private func saveEdit() {
-        guard let id = editingId,
-              let idx = messages.firstIndex(where: { $0.id == id }) else { return }
-        messages[idx].text = editingText
-        persistAndSyncAllMessages()
+        guard let id = editingId else { return }
+        hiddenStore.syncSingleMessage(id: id, text: editingText, folder: folder, notebook: noteTitle)
         editingId = nil
         editingText = ""
         inputFocused = true
     }
 
     private func deleteMessage(id: String) {
-        messages.removeAll { $0.id == id }
-        persistAndSyncAllMessages()
+        hiddenStore.deleteMessage(id: id)
         if editingId == id { editingId = nil }
         inputFocused = true
-    }
-
-    // MARK: - Helper
-    private func persistAndSyncAllMessages() {
-        if let data = try? JSONEncoder().encode(messages) {
-            UserDefaults.standard.set(data, forKey: noteTitle)
-        }
-        for msg in messages {
-            hiddenStore.syncSingleMessage(
-                id: msg.id,
-                text: msg.text,
-                folder: folder,
-                notebook: noteTitle
-            )
-        }
     }
 }
 
@@ -211,7 +162,7 @@ struct NoteDetailView: View {
 struct NoteDetailView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationStack {
-            NoteDetailView(folder: "default", noteTitle: "Chat Note")
+            NoteDetailView(folder: "default", noteTitle: "Sample")
                 .environmentObject(HiddenLineStore())
         }
     }

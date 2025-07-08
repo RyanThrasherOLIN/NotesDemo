@@ -2,12 +2,12 @@ import SwiftUI
 
 /// Shows all messages currently synced through HiddenLineStore
 struct SyncedLinesView: View {
-    @EnvironmentObject private var hiddenStore: HiddenLineStore
+    @EnvironmentObject var hiddenStore: HiddenLineStore
 
     var body: some View {
-        List(hiddenStore.syncedMessages) { msg in
+        List(hiddenStore.syncedMessages, id: \ .id) { msg in
             HStack(alignment: .top, spacing: 8) {
-                // Display the server-provided note ID (now a String)
+                // Display the server-provided note ID
                 Text(msg.id)
                     .font(.caption)
                     .foregroundColor(.secondary)
