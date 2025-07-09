@@ -171,7 +171,6 @@ struct NoteDetailView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationStack {
             NoteDetailView(folder: "default", noteTitle: "Sample")
-                .environmentObject(HiddenLineStore())
         }
     }
 }

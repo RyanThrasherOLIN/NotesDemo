@@ -25,8 +25,6 @@ struct ContentView: View {
     @EnvironmentObject private var store: NoteStore
     /// Store managing audio recordings.
     @EnvironmentObject private var recordingStore: RecordingStore
-    /// Store for tracking hidden lines in notes (e.g., synced or searchable lines).
-    @StateObject private var hiddenStore = HiddenLineStore()
 
     // MARK: - Folder Picker State
     /// Available note folders (e.g., user categories).
@@ -60,12 +58,10 @@ struct ContentView: View {
                 .navigationDestination(for: NavigationDestination.self) { destination in
                     destination.asView
                         .environmentObject(store)
-                        .environmentObject(hiddenStore)
                         .environmentObject(recordingStore)
                 }
             }
             .environmentObject(store)
-            .environmentObject(hiddenStore)
             .environmentObject(recordingStore)
 
             // Overlays for search, add-note, and folder selection
@@ -210,7 +206,6 @@ struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
             .environmentObject(NoteStore())
-            .environmentObject(HiddenLineStore())
             .environmentObject(RecordingStore())
     }
 }

@@ -21,8 +21,6 @@ struct NotesDemoApp: App {
     // MARK: - Shared Data Stores
     /// Primary store for notes, grouped by folders.
     @StateObject private var store = NoteStore()
-    /// Store for tracking and syncing individual lines of note text.
-    @StateObject private var hiddenStore = HiddenLineStore()
     /// Store for managing audio recordings within the app.
     @StateObject private var recordingStore = RecordingStore()
 
@@ -32,7 +30,6 @@ struct NotesDemoApp: App {
             // Root content view with environment object injection
             ContentView()
                 .environmentObject(store)
-                .environmentObject(hiddenStore)
                 .environmentObject(recordingStore)
                 // Perform an initial fetch of user notes when the view appears
                 .task {

@@ -151,6 +151,7 @@ final class NoteStore: ObservableObject {
         let newNote = NoteBook(id: UUID(), title: title, notes: [])
         if var folderNotes = notesByFolder[folder] {
             folderNotes[title] = newNote
+            notesByFolder[folder] = folderNotes
         } else {
             notesByFolder[folder] = [title: newNote]
         }
@@ -222,8 +223,11 @@ final class NoteStore: ObservableObject {
                 print("unexpectedly didn't find notebook in local model")
                 return
             }
+            guard let returnedValues = try? JSONDecoder().decode([String: String].self, from: data), let serverID = returnedValues["id"] else {
+                return
+            }
             // TODO: id should be replaced by server ID
-            notebook.notes.append(Note(id: UUID().uuidString, text: note))
+            notebook.notes.append(Note(id: serverID, text: note))
             DispatchQueue.main.async {
                 self.notesByFolder[folder]![title] = notebook
             }

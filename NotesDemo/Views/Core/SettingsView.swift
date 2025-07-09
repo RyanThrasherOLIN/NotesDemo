@@ -20,10 +20,10 @@ import AVFoundation
 ///
 struct SettingsView: View {
     // MARK: - Environment
-    /// Store for synced hidden lines
-    @EnvironmentObject private var hiddenStore: HiddenLineStore
     /// Store for audio recordings
     @EnvironmentObject private var recordingStore: RecordingStore
+    
+    
 
     // MARK: - Persistent Settings
     /// Base URL for your backend API (stored in UserDefaults)
@@ -64,7 +64,6 @@ struct SettingsView: View {
             Section("Back Door") {
                 NavigationLink("View All Synced Lines") {
                     SyncedLinesView()
-                        .environmentObject(hiddenStore)
                 }
             }
 
