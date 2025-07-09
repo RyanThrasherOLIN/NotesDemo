@@ -7,7 +7,8 @@ struct NoteDetailView: View {
     let noteTitle: String            // key for this notebook
 
     // MARK: Environment Store
-    @EnvironmentObject private var hiddenStore: HiddenLineStore
+    // @EnvironmentObject private var hiddenStore: HiddenLineStore
+    @EnvironmentObject private var notesStore: NoteStore
 
     // MARK: Local State
     @State private var newMessage: String = ""
@@ -17,7 +18,13 @@ struct NoteDetailView: View {
     @FocusState private var editingFocused: Bool
 
     // drive messages off the store directly
-    private var messages: [ChatMessage] { hiddenStore.syncedMessages }
+//    private var messages: [Note] {
+//        if let folderNotes = notesStore.notesByFolder[folder], let noteBook = folderNotes[noteTitle] {
+//            return noteBook.notes
+//        } else {
+//            return []
+//        }
+//    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,18 +39,20 @@ struct NoteDetailView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 8) {
-                        ForEach(messages, id: \.id) { msg in
-                            messageRow(for: msg)
-                                .id(msg.id)
+                        if let folderNotes = notesStore.notesByFolder[folder], let noteBook = folderNotes[noteTitle] {
+                            ForEach(noteBook.notes, id: \.id) { msg in
+                                messageRow(for: msg)
+                                    .id(msg.id)
+                            }
                         }
                     }
                     .padding(.vertical, 8)
                 }
-                .onChange(of: messages) { _ in
-                    if let last = messages.last {
-                        withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-                    }
-                }
+//                .onChange(of: messages) { _ in
+//                    if let last = messages.last {
+//                        withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+//                    }
+//                }
             }
 
             Divider()
@@ -70,14 +79,13 @@ struct NoteDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         // fetch when the view first appears or the notebook changes
         .task(id: noteTitle) {
-            await hiddenStore.fetchMessages(folder: folder, notebook: noteTitle)
             DispatchQueue.main.async { inputFocused = true }
         }
     }
 
     // MARK: Message Row
     @ViewBuilder
-    private func messageRow(for msg: ChatMessage) -> some View {
+    private func messageRow(for msg: Note) -> some View {
         if editingId == msg.id {
             // Inline editing
             HStack {
@@ -137,22 +145,22 @@ struct NoteDetailView: View {
     private func sendMessage() {
         let text = newMessage.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
-        let tempID = UUID().uuidString
-        hiddenStore.syncSingleMessage(id: tempID, text: text, folder: folder, notebook: noteTitle)
+        notesStore.addNote(text, title: noteTitle, folder: folder)
         newMessage = ""
         inputFocused = true
     }
 
     private func saveEdit() {
         guard let id = editingId else { return }
-        hiddenStore.syncSingleMessage(id: id, text: editingText, folder: folder, notebook: noteTitle)
+        notesStore.syncSingleMessage(id: id, text: editingText, folder: folder, notebook: noteTitle)
         editingId = nil
         editingText = ""
         inputFocused = true
     }
 
     private func deleteMessage(id: String) {
-        hiddenStore.deleteMessage(id: id)
+        print("BROKEN")
+        // hiddenStore.deleteMessage(id: id)
         if editingId == id { editingId = nil }
         inputFocused = true
     }

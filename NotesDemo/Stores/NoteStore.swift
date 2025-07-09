@@ -29,10 +29,18 @@ private struct ServerNote: Codable {
 
 /// Local model for a note within the app.
 /// Conforms to `Identifiable` and `Hashable` for SwiftUI lists/navigation.
-struct Note: Identifiable, Hashable {
+struct NoteBook: Identifiable, Hashable, Comparable {
     let id: UUID             // Unique local identifier
     let title: String        // Display title of the note
-    var lines: [String]      // Individual lines (populated by sync)
+    var notes: [Note]      // Individual lines (populated by sync)
+    static func < (lhs: NoteBook, rhs: NoteBook) -> Bool {
+        return lhs.title < rhs.title // Sort by title in alphabetical order
+    }
+}
+
+struct Note: Identifiable, Hashable {
+    let id: String
+    var text: String
 }
 
 /// Observable object that holds notes grouped by folder.
@@ -44,25 +52,20 @@ final class NoteStore: ObservableObject {
     // MARK: - Published State
 
     /// Maps folder names ("Notes", "Work", "Personal") to arrays of `Note`.
-    @Published var notesByFolder: [String: [Note]] = [
-        "Notes": [],
-        "Work": [],
-        "Personal": []
+    @Published var notesByFolder: [String: [String: NoteBook]] = [
+        "Notes": [:],
+        "Work": [:],
+        "Personal": [:]
     ]
 
     // MARK: - Private Configuration
 
     /// Unique persistent user/device ID stored in UserDefaults.
     /// Generated once and reused for all server API calls.
-    private let userID: String = {
-        let key = "userID"
-        if let existing = UserDefaults.standard.string(forKey: key) {
-            return existing
-        }
-        let fresh = UUID().uuidString
-        UserDefaults.standard.set(fresh, forKey: key)
-        return fresh
-    }()
+    private var userID: String {
+        // TODO: replace with a real user ID provided by Firebase authentication (if we use Apple sign-in we can share notes automatically)
+        return UIDevice.current.identifierForVendor!.uuidString
+    }
 
     /// Base URL for the backend API.
     /// Reads the user-editable “apiURL” key; falls back to default if unset.
@@ -111,20 +114,25 @@ final class NoteStore: ObservableObject {
             do {
                 // Decode server response
                 let serverNotes = try JSONDecoder().decode([ServerNote].self, from: data)
-                print("fetchUserNotes: fetched \(serverNotes.count) notes")
-
-                // Group into our local folders
-                var grouped: [String: [Note]] = [
-                    "Notes": [], "Work": [], "Personal": []
-                ]
-                for s in serverNotes {
-                    let key = s.folder.lowercased() == "default" ? "Notes" : s.folder
-                    let note = Note(id: UUID(), title: s.note, lines: [])
-                    grouped[key, default: []].append(note)
-                }
-
                 DispatchQueue.main.async {
-                    self.notesByFolder = grouped
+                    print("fetchUserNotes: fetched \(serverNotes.count) notes")
+                    for s in serverNotes {
+                        let key = s.folder.lowercased() == "default" ? "Notes" : s.folder
+                        if var folderNotes = self.notesByFolder[key] {
+                            if var notebook = folderNotes[s.notebook] {
+                                print("adding a new note to a notebook \(s.note)")
+                                notebook.notes.append(Note(id: s.id, text: s.note))
+                                self.notesByFolder[key]![s.notebook] = notebook
+                            } else {
+                                print("adding a new notebook to a folder \(s.notebook)")
+                                folderNotes[s.notebook] = NoteBook(id: UUID(), title: s.notebook, notes: [])
+                                self.notesByFolder[key] = folderNotes
+                            }
+                        } else {
+                            print("adding a new dictionary for a folder \(s.folder)")
+                            self.notesByFolder[key] = [s.notebook: NoteBook(id: UUID(), title: s.notebook, notes: [])]
+                        }
+                    }
                 }
             } catch {
                 print("fetchUserNotes decode error:", error)
@@ -133,16 +141,19 @@ final class NoteStore: ObservableObject {
         .resume()
     }
 
-    /// Adds a new note locally and on the server.
+    /// Adds a new notebook locally and on the server.
     ///
     /// - Parameters:
-    ///   - title: The note title to add.
+    ///   - title: The notebook title to add.
     ///   - folder: The target folder name.
-    func addNote(title: String, to folder: String) {
+    func addNoteBook(title: String, to folder: String) {
         // 1) Local update for immediate UI feedback
-        let newNote = Note(id: UUID(), title: title, lines: [])
-        notesByFolder[folder, default: []].append(newNote)
-
+        let newNote = NoteBook(id: UUID(), title: title, notes: [])
+        if var folderNotes = notesByFolder[folder] {
+            folderNotes[title] = newNote
+        } else {
+            notesByFolder[folder] = [title: newNote]
+        }
         // 2) Network request to persist on server
         let url = baseURL.appendingPathComponent("add_note")
         var request = URLRequest(url: url)
@@ -162,7 +173,101 @@ final class NoteStore: ObservableObject {
             print("addNote payload encoding failed:", error)
             return
         }
+        
+        // TODO: if we can get a server ID for notebook title, that would be good since it would let us edit the name eventually
 
+        // TODO: make sure to check for errors
         URLSession.shared.dataTask(with: request).resume()
+    }
+    
+    /// Adds a new note locally and on the server.
+    ///
+    /// - Parameters:
+    ///   - note: the text of the note.
+    ///   - title: The notebook title to add the note to.
+    ///   - folder: The target folder name.
+    func addNote(_ note: String, title: String, folder: String) {
+        // 2) Network request to persist on server
+        let url = baseURL.appendingPathComponent("add_note")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let payload = AddNoteRequest(
+            device_id: userID,
+            note:      note,
+            folder:    folder,
+            notebook:  title
+        )
+        
+        do {
+            request.httpBody = try JSONEncoder().encode(payload)
+        } catch {
+            print("addNote payload encoding failed:", error)
+            return
+        }
+        
+        // TODO: make sure to check for errors
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            if let error = error {
+                print("fetchUserNotes error:", error)
+                return
+            }
+            guard let data = data else {
+                print("addNote: no data returned")
+                return
+            }
+            // TODO: parse the ID from the server and update note (when it is sent back) (e.g., let serverID = data["server_id"]
+            guard let folderNotes = self.notesByFolder[folder], var notebook = folderNotes[title] else {
+                print("unexpectedly didn't find notebook in local model")
+                return
+            }
+            // TODO: id should be replaced by server ID
+            notebook.notes.append(Note(id: UUID().uuidString, text: note))
+            DispatchQueue.main.async {
+                self.notesByFolder[folder]![title] = notebook
+            }
+        }.resume()
+    }
+    
+    /// Upserts a message: if it exists, sends an update; otherwise posts and swaps the temp ID
+    func syncSingleMessage(id: String, text: String, folder: String, notebook: String) {
+        let url = baseURL.appendingPathComponent("update_note")
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let payload = [
+            "device_id": userID,
+            "note_id": id,
+            "note": text
+        ]
+        
+        do {
+            request.httpBody = try JSONEncoder().encode(payload)
+        } catch {
+            print("addNote payload encoding failed:", error)
+            return
+        }
+        
+        // TODO: make sure to check for errors
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            if let error = error {
+                print("syncSingleMessage error:", error)
+                return
+            }
+            guard let folderNotes = self.notesByFolder[folder], var noteBook = folderNotes[notebook] else {
+                return
+            }
+            for (index, note) in noteBook.notes.enumerated() {
+                if note.id == id {
+                    noteBook.notes[index].text = text
+                    break
+                }
+            }
+            DispatchQueue.main.async {
+                self.notesByFolder[folder]![notebook] = noteBook
+            }
+        }.resume()
     }
 }

@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "98ED7DB72E0DD26100EAB137"
-               BuildableName = "NotesDemo.app"
+               BuildableName = "EchoMinds.app"
                BlueprintName = "NotesDemo"
                ReferencedContainer = "container:NotesDemo.xcodeproj">
             </BuildableReference>
@@ -45,7 +45,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "98ED7DB72E0DD26100EAB137"
-            BuildableName = "NotesDemo.app"
+            BuildableName = "EchoMinds.app"
             BlueprintName = "NotesDemo"
             ReferencedContainer = "container:NotesDemo.xcodeproj">
          </BuildableReference>
@@ -62,7 +62,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "98ED7DB72E0DD26100EAB137"
-            BuildableName = "NotesDemo.app"
+            BuildableName = "EchoMinds.app"
             BlueprintName = "NotesDemo"
             ReferencedContainer = "container:NotesDemo.xcodeproj">
          </BuildableReference>

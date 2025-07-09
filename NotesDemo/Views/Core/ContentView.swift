@@ -77,7 +77,7 @@ struct ContentView: View {
                 AddNoteOverlay(isPresented: $showingAdd) { title in
                     let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !trimmed.isEmpty else { return }
-                    store.addNote(title: trimmed, to: currentFolder)
+                    store.addNoteBook(title: trimmed, to: currentFolder)
                 }
             }
 
@@ -183,33 +183,24 @@ struct NoteList: View {
     
     var body: some View {
         List {
-            ForEach(store.notesByFolder[currentFolder] ?? [], id: \.id) { note in
-                NavigationLink(
-                    value: NavigationDestination.noteDetail(
-                        folder: currentFolder,
-                        noteTitle: note.title
-                    )
-                ) {
-                    Text(note.title)
-                        .font(.title2)
-                        .padding(.vertical, 6)
+            if let folderNotes = store.notesByFolder[currentFolder] {
+                ForEach(folderNotes.sorted(by: <), id: \.key) { noteBookTitle, noteBook in
+                    NavigationLink(
+                        value: NavigationDestination.noteDetail(
+                            folder: currentFolder,
+                            noteTitle: noteBookTitle)
+                    ) {
+                        Text(noteBookTitle)
+                            .font(.title2)
+                            .padding(.vertical, 6)
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                 }
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
             }
-            .onDelete(perform: deleteRows)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-    }
-    // MARK: - Helpers
-    /// Deletes notes from the current folder at the specified offsets.
-    ///
-    /// - Parameter offsets: The index set of rows to remove.
-    private func deleteRows(_ offsets: IndexSet) {
-        guard var list = store.notesByFolder[currentFolder] else { return }
-        list.remove(atOffsets: offsets)
-        store.notesByFolder[currentFolder] = list
     }
 }
 
