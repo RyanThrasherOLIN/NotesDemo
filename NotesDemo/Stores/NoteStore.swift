@@ -1,3 +1,5 @@
+// NoteStore.swift
+
 import Foundation
 import UIKit    // for UIDevice
 
@@ -167,6 +169,37 @@ final class NoteStore: ObservableObject {
             }
             if let resp = response as? HTTPURLResponse {
                 print("deleteNote response code: \(resp.statusCode)")
+            }
+        }.resume()
+    }
+
+    /// Deletes all user notes on the server and clears the local store.
+    func deleteAllNotes() {
+        let endpoint = baseURL
+            .appendingPathComponent("delete_user_notes")
+            .appendingPathComponent(userID)
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "DELETE"
+
+        URLSession.shared.dataTask(with: request) { _, response, error in
+            if let error = error {
+                print("deleteAllNotes error: ", error)
+                return
+            }
+            if let http = response as? HTTPURLResponse {
+                print("deleteAllNotes response code: \(http.statusCode)")
+                if (200...299).contains(http.statusCode) {
+                    DispatchQueue.main.async {
+                        // Clear local notes
+                        self.notesByFolder = [
+                            "Notes": [:],
+                            "Work": [:],
+                            "Personal": [:]
+                        ]
+                        // Optionally reset fetch flag if you want to allow a fresh fetch:
+                        self.hasFetchedNotes = false
+                    }
+                }
             }
         }.resume()
     }

@@ -1,48 +1,25 @@
-///
-/// SettingsView.swift
-/// NotesDemo
-///
-/// Provides user-accessible settings and navigation for:
-/// - Configuring application appearance and notifications
-/// - Viewing synced hidden lines
-/// - Managing audio recordings
-/// - Specifying the server endpoint URL
-///
 import SwiftUI
 import AVFoundation
 
-/// Main settings screen for configuring app preferences and
-/// accessing advanced views.
-///
-/// - Toggles dark mode, notifications, and server endpoint URL.
-/// - Provides a "Back Door" to view all synced lines.
-/// - Lists recorded audio notes and allows creating new recordings.
-///
 struct SettingsView: View {
     // MARK: - Environment
-    /// Store for audio recordings
     @EnvironmentObject private var recordingStore: RecordingStore
-    
-    
+    @EnvironmentObject private var noteStore: NoteStore    // <-- injected NoteStore
 
     // MARK: - Persistent Settings
-    /// Base URL for your backend API (stored in UserDefaults)
     @AppStorage("apiURL") private var apiURL: String = "http://10.77.0.11:5000"
-    /// Toggle for dark mode preference (stored in UserDefaults)
     @AppStorage("darkMode") private var darkMode = false
-    /// Toggle for enabling/disabling notifications (stored in UserDefaults)
     @AppStorage("notifications") private var notifications = true
 
     // MARK: - View State
-    /// Controls presentation of the full-screen recording overlay
     @State private var showingRecorder = false
+    @State private var showingDeleteAllConfirmation = false    // <-- new state
 
     // MARK: - View Body
     var body: some View {
         Form {
             // MARK: Server Configuration
             Section("Server") {
-                // Allow user to enter custom API URL or IP address
                 TextField("Server URL", text: $apiURL)
                     .keyboardType(.URL)
                     .autocapitalization(.none)
@@ -75,6 +52,23 @@ struct SettingsView: View {
                 }
             }
 
+            // MARK: Delete Notes section
+            Section("Delete Notes") {
+                Button("Delete All Notes") {
+                    showingDeleteAllConfirmation = true
+                }
+                .foregroundColor(.red)
+                .alert("Delete All Notes",
+                       isPresented: $showingDeleteAllConfirmation) {
+                    Button("Delete", role: .destructive) {
+                        noteStore.deleteAllNotes()
+                    }
+                    Button("Cancel", role: .cancel) { }
+                } message: {
+                    Text("Are you sure you want to delete all notes? This cannot be undone.")
+                }
+            }
+
             // MARK: Actions
             Section {
                 Button("Record New Audio") {
@@ -91,7 +85,6 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
-        // Present the full-screen recording overlay when requested
         .fullScreenCover(isPresented: $showingRecorder) {
             RecordingView(isPresented: $showingRecorder)
                 .environmentObject(recordingStore)
@@ -99,6 +92,8 @@ struct SettingsView: View {
         }
     }
 }
+
+// RecordingListView and RecordingRowView remain unchanged.
 
 /// View that lists all audio recordings in the store.
 ///
