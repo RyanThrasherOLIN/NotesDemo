@@ -51,7 +51,11 @@ struct RecordingView: View {
                 Button {
                     // Toggle recording state and perform appropriate action
                     if isRecording {
-                        stopAndConvert()
+                        Task {
+                            if let recording = await stopAndConvert(), let transcript = await recordingStore.speechToText(recording) {
+                                print(transcript)
+                            }
+                        }
                     } else {
                         startRecording()
                     }
@@ -87,7 +91,7 @@ struct RecordingView: View {
         // Recorder settings: AAC format, 12 kHz sample rate, mono channel, high quality
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 12_000,
+            AVSampleRateKey: 44_100,
             AVNumberOfChannelsKey: 1,
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
         ]
@@ -97,12 +101,12 @@ struct RecordingView: View {
 
     /// Stops the recorder, converts the M4A file to MP3 using SwiftLAME,
     /// and saves the resulting recording to `RecordingStore`.
-    private func stopAndConvert() {
+    private func stopAndConvert() async -> Recording? {
         recorder?.stop()
         guard let src = tempURL else {
             // If no source URL, dismiss without saving
             isPresented = false
-            return
+            return nil
         }
 
         // Destination URL: same base name with `.mp3` extension
@@ -115,27 +119,27 @@ struct RecordingView: View {
             quality: .best
         )
 
-        Task {
-            do {
-                // Perform asynchronous MP3 encoding
-                let encoder = try SwiftLameEncoder(
-                    sourceUrl: src,
-                    configuration: config,
-                    destinationUrl: dst
-                )
-                try await encoder.encode(priority: .userInitiated)
+        do {
+            // Perform asynchronous MP3 encoding
+            let encoder = try SwiftLameEncoder(
+                sourceUrl: src,
+                configuration: config,
+                destinationUrl: dst
+            )
+            try await encoder.encode(priority: .userInitiated)
 
-                // Create a Recording model and add it to the store on the main thread
-                let rec = Recording(url: dst, createdAt: Date())
-                await MainActor.run {
-                    recordingStore.add(rec)
-                    isPresented = false
-                }
-            } catch {
-                print("MP3 encode failed:", error)
-                // On failure, simply dismiss the overlay
-                await MainActor.run { isPresented = false }
+            // Create a Recording model and add it to the store on the main thread
+            let rec = Recording(url: dst, createdAt: Date())
+            await MainActor.run {
+                recordingStore.add(rec)
+                isPresented = false
             }
+            return rec
+        } catch {
+            print("MP3 encode failed:", error)
+            // On failure, simply dismiss the overlay
+            await MainActor.run { isPresented = false }
+            return nil
         }
     }
 }

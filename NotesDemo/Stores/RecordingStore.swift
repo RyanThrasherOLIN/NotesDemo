@@ -26,7 +26,7 @@ struct Recording: Identifiable {
 final class RecordingStore: ObservableObject {
     /// Published array of recordings, ordered newest first.
     @Published var recordings: [Recording] = []
-
+    
     /// Adds a new recording to the store.
     ///
     /// - Parameter recording: The `Recording` instance to insert.
@@ -36,8 +36,12 @@ final class RecordingStore: ObservableObject {
         recordings.insert(recording, at: 0)
     }
     
-    func speechToText(_ recording: Recording) async {
-        let openAIApiKey = "OPENAI_API_KEY"
+    /// Convert an audio mp3 recording into a text transcription using OpenAI's API.
+    ///
+    /// - Parameter recording: The `Recording` instance to transcribe.
+    ///
+    /// - Returns: Text transcription, or nil if the function fails.
+    func speechToText(_ recording: Recording) async -> String? {
         let openAiUrl = URL(string: "https://api.openai.com/v1/audio/transcriptions")!
         
         var request = URLRequest(url: openAiUrl)
@@ -55,8 +59,8 @@ final class RecordingStore: ObservableObject {
             
             // Add audio file
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.m4a\"\r\n".data(using: .utf8)!)
-            body.append("Content-Type: audio/m4a\r\n\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"file\"; filename=\"audio.mp3\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: audio/mp3\r\n\r\n".data(using: .utf8)!)
             body.append(audioData)
             body.append("\r\n".data(using: .utf8)!)
             
@@ -85,9 +89,20 @@ final class RecordingStore: ObservableObject {
                 print("Status code: \(httpResponse.statusCode)")
             }
             
-            print("-----> responseData \n \(String(data: responseData, encoding: .utf8) ?? "Could not decode response") \n")
+            // Parse JSON to get the text
+            if let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let transcribedText = json["text"] as? String {
+                return transcribedText
+            } else {
+                print("Could not parse JSON response")
+                print("Raw response: \(String(data: responseData, encoding: .utf8) ?? "Could not decode")")
+                return nil
+            }
+            
             
         } catch {
             print("Error: \(error)")
+            return nil
         }
     }
+}
