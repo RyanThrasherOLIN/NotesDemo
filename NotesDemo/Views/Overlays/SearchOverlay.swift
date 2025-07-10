@@ -1,54 +1,30 @@
-///
-/// SearchOverlay.swift
-/// NotesDemo
-///
-/// A true modal overlay that lets users enter a query, sends it to a backend AI service,
-/// and displays the async response.
-/// Hides all background content from VoiceOver and moves focus to the search field.
-///
-/// - Dismissible by tapping outside or tapping the back button.
-/// - Automatically focuses and announces the search field on appear.
-/// - Treats itself as a modal to block underlying UI for accessibility.
-///
 import SwiftUI
 import UIKit  // for UIAccessibility
 
 struct SearchOverlay: View {
     // MARK: - Presentation Binding
-
-    /// Controls whether this overlay is shown.
     @Binding var isPresented: Bool
 
     // MARK: - Search State
-
-    /// The user's current search query.
     @State private var query: String = ""
-    /// The AI response text.
     @State private var responseText: String = ""
-    /// Whether a request is in progress.
     @State private var isLoading: Bool = false
-    /// Focus binding for the TextField.
     @FocusState private var isSearchFieldFocused: Bool
-
-    // MARK: - View Body
+    @AccessibilityFocusState private var isResultFocused: Bool  // For VoiceOver focus
 
     var body: some View {
         ZStack {
-            // MARK: Background
-            // Dimmed, blurred tap‐to‐dismiss background, hidden from VoiceOver
+            // Dimmed background
             Rectangle()
                 .fill(.ultraThinMaterial)
                 .ignoresSafeArea()
                 .onTapGesture { isPresented = false }
                 .accessibilityHidden(true)
 
-            // MARK: Main Container
             VStack(spacing: 20) {
-                // Top bar with Close button
+                // Top bar
                 HStack {
-                    Button {
-                        isPresented = false
-                    } label: {
+                    Button { isPresented = false } label: {
                         Image(systemName: "chevron.backward")
                             .font(.title2)
                             .padding(8)
@@ -74,31 +50,56 @@ struct SearchOverlay: View {
                 .cornerRadius(12)
                 .padding(.horizontal)
 
-                // Loading indicator or results
+                // Results or loading indicator
                 if isLoading {
                     ProgressView()
                         .accessibilityLabel("Loading")
                 } else if !responseText.isEmpty {
-                    ScrollView {
-                        Text(responseText)
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    // Display result bubble with refresh button
+                    List {
+                        ForEach([responseText], id: \.self) { resp in
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(resp)
+                                    .padding(12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .fill(Color(UIColor.systemGray5))
+                                    )
+                                    .accessibilityLabel("Search result")
+                                    .accessibilityValue(resp)
+                                    .accessibilityFocused($isResultFocused)
+
+                                Button(action: {
+                                    print("Note bad, refreshing note")
+                                }) {
+                                    HStack {
+                                        Image(systemName: "arrow.clockwise")
+                                            .font(.headline)
+                                        Text("Refresh Note")
+                                            .font(.headline)
+                                    }
+                                }
+                                .accessibilityLabel("Refresh note")
+                                .accessibilityHint("Press to get a new note")
+                                .tint(.blue)
+                            }
+                            .padding(.vertical, 8)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                        }
                     }
+                    .listStyle(.plain)
                     .frame(maxHeight: 300)
-                    .background(.thickMaterial)
-                    .cornerRadius(12)
-                    .padding(.horizontal)
-                    .accessibilityLabel("Search results")
+                    .accessibilityElement(children: .contain)
                 }
 
                 Spacer()
             }
-            // Treat the VStack as one modal accessibility element
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isModal)
         }
-        // On appear, focus the search field and notify VoiceOver
         .onAppear {
+            // Focus search field on appear
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 isSearchFieldFocused = true
                 UIAccessibility.post(notification: .layoutChanged, argument: nil)
@@ -107,8 +108,6 @@ struct SearchOverlay: View {
     }
 
     // MARK: - Networking
-
-    /// Performs the search: trims input, shows loading, calls the API, then updates UI.
     private func performSearch() async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -119,13 +118,16 @@ struct SearchOverlay: View {
 
         do {
             let result = try await fetchAIResponse(question: trimmed)
-            await MainActor.run { responseText = result }
+            await MainActor.run {
+                responseText = result
+                // Move VoiceOver focus to the result text
+                isResultFocused = true
+            }
         } catch {
             await MainActor.run { responseText = "Error: \(error.localizedDescription)" }
         }
     }
 
-    /// Sends a POST to `/get_response` with `device_id` and `question`, returns the answer.
     private func fetchAIResponse(question: String) async throws -> String {
         let endpoint = Config.baseURL.appendingPathComponent("get_response")
         var req = URLRequest(url: endpoint)
@@ -141,12 +143,18 @@ struct SearchOverlay: View {
             throw URLError(.badServerResponse)
         }
 
-        // Try decoding JSON {"response":...} or {"answer":...}
         if let dict = try? JSONDecoder().decode([String:String].self, from: data),
            let text = dict["response"] ?? dict["answer"] {
             return text
         }
-        // Fallback to raw string
         return String(decoding: data, as: UTF8.self)
     }
 }
+
+#if DEBUG
+struct SearchOverlay_Previews: PreviewProvider {
+    static var previews: some View {
+        SearchOverlay(isPresented: .constant(true))
+    }
+}
+#endif
