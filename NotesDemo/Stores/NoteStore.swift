@@ -1,4 +1,5 @@
 // NoteStore.swift
+// NoteStore.swift
 
 import Foundation
 import UIKit    // for UIDevice
@@ -7,18 +8,25 @@ import UIKit    // for UIDevice
 
 /// Payload sent to POST /add_note on the server.
 private struct AddNoteRequest: Codable {
-    let device_id: String    // Unique user/device identifier
-    let note: String         // Note title/text
-    let folder: String       // Folder name on server
-    let notebook: String     // Notebook name
+    let device_id: String
+    let note: String
+    let folder: String
+    let notebook: String
+}
+
+/// Payload sent to POST /get_response when requesting top-K answers.
+private struct GetResponseRequest: Codable {
+    let device_id: String
+    let question: String
+    let k: String
 }
 
 /// Representation of a note returned by GET /get_user_notes.
 private struct ServerNote: Codable {
-    let folder: String       // Server-side folder name
-    let id: String           // Server-generated identifier
-    let note: String         // Note title/text
-    let notebook: String     // Notebook name
+    let folder: String
+    let id: String
+    let note: String
+    let notebook: String
 }
 
 /// Local model for a notebook containing multiple lines.
@@ -86,11 +94,19 @@ final class NoteStore: ObservableObject {
                                 notebook.notes.append(Note(id: s.id, text: s.note))
                                 self.notesByFolder[key]![s.notebook] = notebook
                             } else {
-                                folderNotes[s.notebook] = NoteBook(id: UUID(), title: s.notebook, notes: [Note(id: s.id, text: s.note)])
+                                folderNotes[s.notebook] = NoteBook(
+                                    id: UUID(),
+                                    title: s.notebook,
+                                    notes: [Note(id: s.id, text: s.note)]
+                                )
                                 self.notesByFolder[key] = folderNotes
                             }
                         } else {
-                            let newBook = NoteBook(id: UUID(), title: s.notebook, notes: [Note(id: s.id, text: s.note)])
+                            let newBook = NoteBook(
+                                id: UUID(),
+                                title: s.notebook,
+                                notes: [Note(id: s.id, text: s.note)]
+                            )
                             self.notesByFolder[key] = [s.notebook: newBook]
                         }
                     }
@@ -110,7 +126,6 @@ final class NoteStore: ObservableObject {
         } else {
             notesByFolder[folder] = [title: newBook]
         }
-        // TODO: call a dedicated endpoint when backend supports notebook creation
     }
 
     /// Adds a new note line to a notebook, persists on server.
@@ -120,8 +135,14 @@ final class NoteStore: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let payload = AddNoteRequest(device_id: userID, note: note, folder: folder, notebook: title)
-        do { request.httpBody = try JSONEncoder().encode(payload) } catch {
+        let payload = AddNoteRequest(
+            device_id: userID,
+            note: note,
+            folder: folder,
+            notebook: title
+        )
+        do { request.httpBody = try JSONEncoder().encode(payload) }
+        catch {
             print("addNote payload encoding failed: ", error)
             return
         }
@@ -137,7 +158,8 @@ final class NoteStore: ObservableObject {
             else { return }
 
             DispatchQueue.main.async {
-                if var folderNotes = self.notesByFolder[folder], var notebook = folderNotes[title] {
+                if var folderNotes = self.notesByFolder[folder],
+                   var notebook = folderNotes[title] {
                     notebook.notes.append(Note(id: serverID, text: note))
                     self.notesByFolder[folder]![title] = notebook
                 }
@@ -145,16 +167,15 @@ final class NoteStore: ObservableObject {
         }.resume()
     }
 
-    /// Deletes a note by ID, both locally and on server via DELETE /delete_note/{device}/{note}.
+    /// Deletes a note by ID, both locally and on server.
     func deleteNote(id: String, notebook: String, folder: String) {
-        // Remove locally first
         DispatchQueue.main.async {
-            if var folderNotes = self.notesByFolder[folder], var book = folderNotes[notebook] {
+            if var folderNotes = self.notesByFolder[folder],
+               var book = folderNotes[notebook] {
                 book.notes.removeAll { $0.id == id }
                 self.notesByFolder[folder]![notebook] = book
             }
         }
-        // Call DELETE on server
         let endpoint = baseURL
             .appendingPathComponent("delete_note")
             .appendingPathComponent(userID)
@@ -162,15 +183,7 @@ final class NoteStore: ObservableObject {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "DELETE"
 
-        URLSession.shared.dataTask(with: request) { _, response, error in
-            if let error = error {
-                print("deleteNote error: ", error)
-                return
-            }
-            if let resp = response as? HTTPURLResponse {
-                print("deleteNote response code: \(resp.statusCode)")
-            }
-        }.resume()
+        URLSession.shared.dataTask(with: request).resume()
     }
 
     /// Deletes all user notes on the server and clears the local store.
@@ -186,33 +199,39 @@ final class NoteStore: ObservableObject {
                 print("deleteAllNotes error: ", error)
                 return
             }
-            if let http = response as? HTTPURLResponse {
-                print("deleteAllNotes response code: \(http.statusCode)")
-                if (200...299).contains(http.statusCode) {
-                    DispatchQueue.main.async {
-                        // Clear local notes
-                        self.notesByFolder = [
-                            "Notes": [:],
-                            "Work": [:],
-                            "Personal": [:]
-                        ]
-                        // Optionally reset fetch flag if you want to allow a fresh fetch:
-                        self.hasFetchedNotes = false
-                    }
+            if let http = response as? HTTPURLResponse,
+               (200...299).contains(http.statusCode) {
+                DispatchQueue.main.async {
+                    self.notesByFolder = [
+                        "Notes": [:],
+                        "Work": [:],
+                        "Personal": [:]
+                    ]
+                    self.hasFetchedNotes = false
                 }
             }
         }.resume()
     }
 
-    /// Updates an existing note text.
-    func syncSingleMessage(id: String, text: String, folder: String, notebook: String) {
+    /// Updates an existing note text on the server and locally.
+    func syncSingleMessage(
+        id: String,
+        text: String,
+        folder: String,
+        notebook: String
+    ) {
         let endpoint = baseURL.appendingPathComponent("update_note")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let payload = ["device_id": userID, "note_id": id, "note": text]
-        do { request.httpBody = try JSONEncoder().encode(payload) } catch {
+        let payload = [
+            "device_id": userID,
+            "note_id": id,
+            "note": text
+        ]
+        do { request.httpBody = try JSONEncoder().encode(payload) }
+        catch {
             print("syncSingleMessage payload encoding failed: ", error)
             return
         }
@@ -223,13 +242,48 @@ final class NoteStore: ObservableObject {
                 return
             }
             DispatchQueue.main.async {
-                if var folderNotes = self.notesByFolder[folder], var book = folderNotes[notebook] {
-                    if let idx = book.notes.firstIndex(where: { $0.id == id }) {
-                        book.notes[idx].text = text
-                        self.notesByFolder[folder]![notebook] = book
-                    }
+                if var folderNotes = self.notesByFolder[folder],
+                   var book = folderNotes[notebook],
+                   let idx = book.notes.firstIndex(where: { $0.id == id }) {
+                    book.notes[idx].text = text
+                    self.notesByFolder[folder]![notebook] = book
                 }
             }
         }.resume()
+    }
+
+    // MARK: - New: Fetch Top-K AI Responses
+    /// Requests the top-K responses for a given question from `/get_response?k=...`
+    func fetchTopNotes(question: String, k: Int) async throws -> [String] {
+        let endpoint = baseURL.appendingPathComponent("get_response")
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let payload = GetResponseRequest(
+            device_id: userID,
+            question: question,
+            k: String(k)
+        )
+        request.httpBody = try JSONEncoder().encode(payload)
+
+        let (data, resp) = try await URLSession.shared.data(for: request)
+        guard let code = (resp as? HTTPURLResponse)?.statusCode,
+              200..<300 ~= code else {
+            throw URLError(.badServerResponse)
+        }
+
+        let raw = try JSONDecoder().decode([String: String].self, from: data)
+        // Extract and sort answer_N entries
+        let sorted = raw.compactMap { key, val -> (Int, String)? in
+            guard key.hasPrefix("answer_"),
+                  let num = Int(key.dropFirst("answer_".count))
+            else { return nil }
+            return (num, val)
+        }
+        .sorted { $0.0 < $1.0 }
+        .map { $0.1 }
+
+        return sorted
     }
 }

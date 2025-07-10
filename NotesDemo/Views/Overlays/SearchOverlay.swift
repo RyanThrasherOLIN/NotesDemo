@@ -1,3 +1,6 @@
+// SearchOverlay.swift
+// SearchOverlay.swift
+
 import SwiftUI
 import UIKit  // for UIAccessibility
 
@@ -5,12 +8,22 @@ struct SearchOverlay: View {
     // MARK: - Presentation Binding
     @Binding var isPresented: Bool
 
+    // MARK: - Injected Stores
+    @EnvironmentObject private var noteStore: NoteStore
+
+    // MARK: - Configuration
+    private let kResults = 5
+
     // MARK: - Search State
     @State private var query: String = ""
+    @State private var answers: [String] = []
+    @State private var currentIndex: Int = 0
     @State private var responseText: String = ""
     @State private var isLoading: Bool = false
+
+    // MARK: - Focus
     @FocusState private var isSearchFieldFocused: Bool
-    @AccessibilityFocusState private var isResultFocused: Bool  // For VoiceOver focus
+    @AccessibilityFocusState private var isResultFocused: Bool
 
     var body: some View {
         ZStack {
@@ -55,38 +68,33 @@ struct SearchOverlay: View {
                     ProgressView()
                         .accessibilityLabel("Loading")
                 } else if !responseText.isEmpty {
-                    // Display result bubble with refresh button
                     List {
-                        ForEach([responseText], id: \.self) { resp in
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text(resp)
-                                    .padding(12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .fill(Color(UIColor.systemGray5))
-                                    )
-                                    .accessibilityLabel("Search result")
-                                    .accessibilityValue(resp)
-                                    .accessibilityFocused($isResultFocused)
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(responseText)
+                                .padding(12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(Color(UIColor.systemGray5))
+                                )
+                                .accessibilityLabel("Search result")
+                                .accessibilityValue(responseText)
+                                .accessibilityFocused($isResultFocused)
 
-                                Button(action: {
-                                    print("Note bad, refreshing note")
-                                }) {
-                                    HStack {
-                                        Image(systemName: "arrow.clockwise")
-                                            .font(.headline)
-                                        Text("Refresh Note")
-                                            .font(.headline)
-                                    }
+                            Button(action: refreshNextAnswer) {
+                                HStack {
+                                    Image(systemName: "arrow.clockwise")
+                                        .font(.headline)
+                                    Text("Refresh Note")
+                                        .font(.headline)
                                 }
-                                .accessibilityLabel("Refresh note")
-                                .accessibilityHint("Press to get a new note")
-                                .tint(.blue)
                             }
-                            .padding(.vertical, 8)
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
+                            .accessibilityLabel("Refresh note")
+                            .accessibilityHint("Load the next relevant result")
+                            .tint(.blue)
                         }
+                        .padding(.vertical, 8)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                     }
                     .listStyle(.plain)
                     .frame(maxHeight: 300)
@@ -99,7 +107,6 @@ struct SearchOverlay: View {
             .accessibilityAddTraits(.isModal)
         }
         .onAppear {
-            // Focus search field on appear
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 isSearchFieldFocused = true
                 UIAccessibility.post(notification: .layoutChanged, argument: nil)
@@ -107,47 +114,35 @@ struct SearchOverlay: View {
         }
     }
 
-    // MARK: - Networking
+    // MARK: - Search & Refresh Logic
     private func performSearch() async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
         isLoading = true
-        responseText = ""
         defer { isLoading = false }
-
         do {
-            let result = try await fetchAIResponse(question: trimmed)
+            let fetched = try await noteStore.fetchTopNotes(
+                question: trimmed,
+                k: kResults
+            )
             await MainActor.run {
-                responseText = result
-                // Move VoiceOver focus to the result text
-                isResultFocused = true
+                self.answers = fetched
+                self.currentIndex = 0
+                self.responseText = fetched.first ?? "No results found."
+                self.isResultFocused = true
             }
         } catch {
-            await MainActor.run { responseText = "Error: \(error.localizedDescription)" }
+            await MainActor.run {
+                responseText = "Error: \(error.localizedDescription)"
+            }
         }
     }
 
-    private func fetchAIResponse(question: String) async throws -> String {
-        let endpoint = Config.baseURL.appendingPathComponent("get_response")
-        var req = URLRequest(url: endpoint)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let deviceID = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
-        let body = ["device_id": deviceID, "question": question]
-        req.httpBody = try JSONEncoder().encode(body)
-
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        guard let code = (resp as? HTTPURLResponse)?.statusCode, 200..<300 ~= code else {
-            throw URLError(.badServerResponse)
-        }
-
-        if let dict = try? JSONDecoder().decode([String:String].self, from: data),
-           let text = dict["response"] ?? dict["answer"] {
-            return text
-        }
-        return String(decoding: data, as: UTF8.self)
+    private func refreshNextAnswer() {
+        guard currentIndex + 1 < answers.count else { return }
+        currentIndex += 1
+        responseText = answers[currentIndex]
     }
 }
 
@@ -155,6 +150,7 @@ struct SearchOverlay: View {
 struct SearchOverlay_Previews: PreviewProvider {
     static var previews: some View {
         SearchOverlay(isPresented: .constant(true))
+            .environmentObject(NoteStore())
     }
 }
 #endif
