@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Displays and edits a list 
+/// Displays and edits a list of ChatMessage objects in a chat-style UI
 struct NoteDetailView: View {
     // MARK: Inputs
     let folder: String
@@ -109,7 +109,9 @@ struct NoteDetailView: View {
                         .accessibilityLabel("Save edits")
                         .accessibilityHint("Double tap to save changes")
 
-                        Button(role: .destructive) { deleteMessage(id: msg.id) } label: {
+                        Button(role: .destructive) {
+                            deleteMessage(id: msg.id)
+                        } label: {
                             Image(systemName: "trash.circle.fill")
                                 .font(.system(size: 22))
                         }
@@ -123,6 +125,7 @@ struct NoteDetailView: View {
                 // DISPLAY MODE
                 HStack {
                     Spacer()
+
                     HStack(spacing: 8) {
                         Text(msg.text)
                             .padding(12)
@@ -186,8 +189,12 @@ struct NoteDetailView: View {
     }
 
     private func deleteMessage(id: String) {
-        if editingId == id { editingId = nil }
+        // Dismiss editing if needed
+        editingId = nil
+        editingText = ""
         inputFocused = true
+        // Call NoteStore delete
+        notesStore.deleteNote(id: id, notebook: noteTitle, folder: folder)
     }
 }
 

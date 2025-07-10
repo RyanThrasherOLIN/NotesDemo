@@ -8,13 +8,13 @@ private struct AddNoteRequest: Codable {
     let device_id: String    // Unique user/device identifier
     let note: String         // Note title/text
     let folder: String       // Folder name on server
-    let notebook: String     // Notebook name (same as title)
+    let notebook: String     // Notebook name
 }
 
 /// Representation of a note returned by GET /get_user_notes.
 private struct ServerNote: Codable {
     let folder: String       // Server-side folder name
-    let id: String           // Server-generated identifier (unused locally)
+    let id: String           // Server-generated identifier
     let note: String         // Note title/text
     let notebook: String     // Notebook name
 }
@@ -22,10 +22,10 @@ private struct ServerNote: Codable {
 /// Local model for a notebook containing multiple lines.
 struct NoteBook: Identifiable, Hashable, Comparable {
     let id: UUID
-    let title: String        // Display title of the notebook
-    var notes: [Note]        // Individual lines
+    let title: String
+    var notes: [Note]
     static func < (lhs: NoteBook, rhs: NoteBook) -> Bool {
-        return lhs.title < rhs.title
+        lhs.title < rhs.title
     }
 }
 
@@ -34,7 +34,7 @@ struct Note: Identifiable, Hashable {
     var text: String
 }
 
-/// Manages fetching, adding, and organizing user notes by folder.
+/// Manages fetching, adding, deleting, and organizing user notes by folder.
 final class NoteStore: ObservableObject {
     @Published var notesByFolder: [String: [String: NoteBook]] = [
         "Notes": [:],
@@ -47,7 +47,7 @@ final class NoteStore: ObservableObject {
     }
 
     private var baseURL: URL {
-        let defaultURL = "http://10.77.0.11:5000"
+        let defaultURL = "http://165.1.68.217:5000"
         let urlString = UserDefaults.standard.string(forKey: "apiURL") ?? defaultURL
         guard let url = URL(string: urlString) else {
             fatalError("Invalid `apiURL` in UserDefaults: \(urlString)")
@@ -57,35 +57,26 @@ final class NoteStore: ObservableObject {
 
     private var hasFetchedNotes = false
 
-    /// Fetches all user notes once per launch, but ignores entries where note equals notebook (i.e. skip notebook titles).
+    /// Fetches all user notes once per launch, skipping entries where note == notebook title.
     func fetchUserNotes() {
         guard !hasFetchedNotes else { return }
         hasFetchedNotes = true
 
         let endpoint = baseURL.appendingPathComponent("get_user_notes")
         var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)
-        components?.queryItems = [ URLQueryItem(name: "device_id", value: userID) ]
-        guard let url = components?.url else {
-            print("Invalid URL for fetchUserNotes")
-            return
-        }
+        components?.queryItems = [URLQueryItem(name: "device_id", value: userID)]
+        guard let url = components?.url else { return }
 
-        print("Fetching notes for userID: \(userID)")
         URLSession.shared.dataTask(with: url) { data, _, error in
             if let error = error {
-                print("fetchUserNotes error:", error)
+                print("fetchUserNotes error: ", error)
                 return
             }
-            guard let data = data else {
-                print("fetchUserNotes: no data returned")
-                return
-            }
+            guard let data = data else { return }
             do {
-                // Decode and filter out any server notes where note == notebook
                 let serverNotes = try JSONDecoder().decode([ServerNote].self, from: data)
                 let filtered = serverNotes.filter { $0.note != $0.notebook }
                 DispatchQueue.main.async {
-                    print("fetchUserNotes: fetched \(filtered.count) notes (excluding notebook titles)")
                     for s in filtered {
                         let key = s.folder.lowercased() == "default" ? "Notes" : s.folder
                         if var folderNotes = self.notesByFolder[key] {
@@ -93,22 +84,22 @@ final class NoteStore: ObservableObject {
                                 notebook.notes.append(Note(id: s.id, text: s.note))
                                 self.notesByFolder[key]![s.notebook] = notebook
                             } else {
-                                folderNotes[s.notebook] = NoteBook(id: UUID(), title: s.notebook, notes: [Note]())
+                                folderNotes[s.notebook] = NoteBook(id: UUID(), title: s.notebook, notes: [Note(id: s.id, text: s.note)])
                                 self.notesByFolder[key] = folderNotes
                             }
                         } else {
-                            let newNotebook = NoteBook(id: UUID(), title: s.notebook, notes: [Note]())
-                            self.notesByFolder[key] = [s.notebook: newNotebook]
+                            let newBook = NoteBook(id: UUID(), title: s.notebook, notes: [Note(id: s.id, text: s.note)])
+                            self.notesByFolder[key] = [s.notebook: newBook]
                         }
                     }
                 }
             } catch {
-                print("fetchUserNotes decode error:", error)
+                print("fetchUserNotes decode error: ", error)
             }
         }.resume()
     }
 
-    /// Adds a new notebook locally (no initial note).
+    /// Adds a new notebook locally (no initial note line).
     func addNoteBook(title: String, to folder: String) {
         let newBook = NoteBook(id: UUID(), title: title, notes: [])
         if var folderNotes = notesByFolder[folder] {
@@ -117,42 +108,34 @@ final class NoteStore: ObservableObject {
         } else {
             notesByFolder[folder] = [title: newBook]
         }
-        // TODO: call a dedicated /add_notebook endpoint when server supports it
+        // TODO: call a dedicated endpoint when backend supports notebook creation
     }
 
-    /// Adds a new note line to a notebook.
+    /// Adds a new note line to a notebook, persists on server.
     func addNote(_ note: String, title: String, folder: String) {
-        let url = baseURL.appendingPathComponent("add_note")
-        var request = URLRequest(url: url)
+        let endpoint = baseURL.appendingPathComponent("add_note")
+        var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let payload = AddNoteRequest(
-            device_id: userID,
-            note:      note,
-            folder:    folder,
-            notebook:  title
-        )
+        let payload = AddNoteRequest(device_id: userID, note: note, folder: folder, notebook: title)
         do { request.httpBody = try JSONEncoder().encode(payload) } catch {
-            print("addNote payload encoding failed:", error)
+            print("addNote payload encoding failed: ", error)
             return
         }
 
         URLSession.shared.dataTask(with: request) { data, _, error in
             if let error = error {
-                print("addNote error:", error)
+                print("addNote error: ", error)
                 return
             }
             guard let data = data,
-                  let returned = try? JSONDecoder().decode([String:String].self, from: data),
+                  let returned = try? JSONDecoder().decode([String: String].self, from: data),
                   let serverID = returned["id"]
-            else {
-                print("addNote: unexpected response")
-                return
-            }
+            else { return }
+
             DispatchQueue.main.async {
-                if var folderNotes = self.notesByFolder[folder],
-                   var notebook = folderNotes[title] {
+                if var folderNotes = self.notesByFolder[folder], var notebook = folderNotes[title] {
                     notebook.notes.append(Note(id: serverID, text: note))
                     self.notesByFolder[folder]![title] = notebook
                 }
@@ -160,31 +143,54 @@ final class NoteStore: ObservableObject {
         }.resume()
     }
 
-    /// Updates an existing note.
+    /// Deletes a note by ID, both locally and on server via DELETE /delete_note/{device}/{note}.
+    func deleteNote(id: String, notebook: String, folder: String) {
+        // Remove locally first
+        DispatchQueue.main.async {
+            if var folderNotes = self.notesByFolder[folder], var book = folderNotes[notebook] {
+                book.notes.removeAll { $0.id == id }
+                self.notesByFolder[folder]![notebook] = book
+            }
+        }
+        // Call DELETE on server
+        let endpoint = baseURL
+            .appendingPathComponent("delete_note")
+            .appendingPathComponent(userID)
+            .appendingPathComponent(id)
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "DELETE"
+
+        URLSession.shared.dataTask(with: request) { _, response, error in
+            if let error = error {
+                print("deleteNote error: ", error)
+                return
+            }
+            if let resp = response as? HTTPURLResponse {
+                print("deleteNote response code: \(resp.statusCode)")
+            }
+        }.resume()
+    }
+
+    /// Updates an existing note text.
     func syncSingleMessage(id: String, text: String, folder: String, notebook: String) {
-        let url = baseURL.appendingPathComponent("update_note")
-        var request = URLRequest(url: url)
+        let endpoint = baseURL.appendingPathComponent("update_note")
+        var request = URLRequest(url: endpoint)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let payload = [
-            "device_id": userID,
-            "note_id": id,
-            "note": text
-        ]
+        let payload = ["device_id": userID, "note_id": id, "note": text]
         do { request.httpBody = try JSONEncoder().encode(payload) } catch {
-            print("syncSingleMessage payload encoding failed:", error)
+            print("syncSingleMessage payload encoding failed: ", error)
             return
         }
 
         URLSession.shared.dataTask(with: request) { _, _, error in
             if let error = error {
-                print("syncSingleMessage error:", error)
+                print("syncSingleMessage error: ", error)
                 return
             }
             DispatchQueue.main.async {
-                if var folderNotes = self.notesByFolder[folder],
-                   var book = folderNotes[notebook] {
+                if var folderNotes = self.notesByFolder[folder], var book = folderNotes[notebook] {
                     if let idx = book.notes.firstIndex(where: { $0.id == id }) {
                         book.notes[idx].text = text
                         self.notesByFolder[folder]![notebook] = book
