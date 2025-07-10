@@ -51,7 +51,9 @@ struct ContentView: View {
                     NoteList(currentFolder: $currentFolder, store: store)
                     // notesList    // List of notes in folder
                     Spacer()
-                    bottomButtons // Bottom toolbar for actions
+                    bottomButtons
+                        .accessibilityHidden(showingAdd)
+                        // Bottom toolbar for actions
                 }
                 .navigationBarHidden(true)
                 // Define navigation destinations for pushing other views
