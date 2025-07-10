@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Displays and edits a list of ChatMessage objects in a chat-style UI
+/// Displays and edits a list 
 struct NoteDetailView: View {
     // MARK: Inputs
     let folder: String
