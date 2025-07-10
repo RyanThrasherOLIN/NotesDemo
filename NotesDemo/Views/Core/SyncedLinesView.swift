@@ -1,54 +1,37 @@
 import SwiftUI
 
-/// Shows all messages currently synced through HiddenLineStore
-// TODO: Shows all messages from NotesStore instead of HiddenLineStore
+/// Shows all messages currently synced through NoteStore, grouped by notebook.
 struct SyncedLinesView: View {
-    //@EnvironmentObject var hiddenStore: HiddenLineStore
-    
-    @EnvironmentObject private var notesStore: NoteStore
+    @EnvironmentObject private var noteStore: NoteStore
 
-    private func getAllSyncedNotes()->[String: [Note]] {
-        var allNotes: [String: [Note]] = [:]
-        for (folderName, folderNotes) in notesStore.notesByFolder {
-            for (noteBookTitle, noteBook) in folderNotes {
-                allNotes[noteBookTitle] = noteBook.notes
-            }
-        }
-        return allNotes
-    }
-    
     var body: some View {
-        let allNotes = getAllSyncedNotes()
-        ScrollView {
-            VStack {
-                ForEach(allNotes.keys.sorted(by: <), id: \.self) { noteBookTitle in
-                    Text(noteBookTitle)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    List(allNotes[noteBookTitle] ?? [], id: \.id) { msg in
-                        HStack(alignment: .top, spacing: 8) {
-                            // Display the server-provided note ID
-                            Text(msg.id)
+        List {
+            // Flatten all notebooks into an array, sorted by title
+            ForEach(allNotebooks(), id: \.id) { notebook in
+                Section(header: Text(notebook.title)
+                            .font(.headline)
+                            .foregroundColor(.primary)) {
+                    ForEach(notebook.notes, id: \.id) { note in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(note.id)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text(msg.text)
+                            Text(note.text)
                         }
                         .padding(.vertical, 4)
-                    }.frame(height: 100)
+                    }
                 }
             }
         }
+        .listStyle(.insetGrouped)
         .navigationTitle("Synced Messages")
         .navigationBarTitleDisplayMode(.inline)
     }
-}
 
-#if DEBUG
-struct SyncedLinesView_Previews: PreviewProvider {
-    static var previews: some View {
-        NavigationStack {
-            SyncedLinesView()
-        }
+    /// Pulls out every NoteBook from the store, sorted alphabetically.
+    private func allNotebooks() -> [NoteBook] {
+        noteStore.notesByFolder
+            .flatMap { $0.value.values }
+            .sorted { $0.title.localizedCompare($1.title) == .orderedAscending }
     }
 }
-#endif

@@ -1,17 +1,6 @@
-// AddNoteOverlay.swift
-// NotesDemo
-//
-// A modal overlay allowing users to enter a new note title.
-// Returns the submitted note string via the provided callback.
-// Dismisses itself on background tap, Cancel, or Save.
-
 import SwiftUI
 import UIKit  // for UIAccessibility
 
-/// Overlay presenting a text field for creating a new note.
-///
-/// - Binds to an external `isPresented` flag to control visibility.
-/// - Calls `onSubmit` with the trimmed input when the user saves.
 struct AddNoteOverlay: View {
     // MARK: - Presentation Binding
     @Binding var isPresented: Bool
@@ -25,16 +14,15 @@ struct AddNoteOverlay: View {
 
     var body: some View {
         ZStack {
-            // Dimmed, blurred background that dismisses on tap, but hidden from VoiceOver
+            // 1) Dimmed, blurred background → hidden from VoiceOver
             Rectangle()
                 .fill(.ultraThinMaterial)
                 .ignoresSafeArea()
-                .accessibilityHidden(true)
+                .accessibilityHidden(true)      // ← hide the “underneath” UI
                 .onTapGesture { isPresented = false }
 
-            // Card-like container for input and actions
+            // 2) The card itself → a single modal element
             VStack(spacing: 16) {
-                // Top action bar with Cancel and Save buttons
                 HStack {
                     Button("Cancel") {
                         isPresented = false
@@ -47,7 +35,6 @@ struct AddNoteOverlay: View {
                 }
                 .padding(.horizontal)
 
-                // Text field for entering the note title
                 TextField("Type a new note…", text: $draft)
                     .textFieldStyle(.roundedBorder)
                     .padding()
@@ -59,38 +46,29 @@ struct AddNoteOverlay: View {
             .background(.thinMaterial)
             .cornerRadius(12)
             .padding()
-            // Trap VoiceOver focus inside this card
+
+            // ← trap VoiceOver focus inside here and mark as a modal
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isModal)
+            
+            // 3) On appear, move VoiceOver focus into the field
             .onAppear {
-                // send VoiceOver cursor to the text field
-                textFieldFocused = true
-                UIAccessibility.post(
-                    notification: .screenChanged,
-                    argument: UIAccessibility.focusedElement(using: .notificationVoiceOver) ?? nil
-                )
+                // small delay so the field is in the view hierarchy first
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    textFieldFocused = true
+                    // announce the new modal to VoiceOver
+                    UIAccessibility.post(
+                      notification: .layoutChanged,
+                      argument: nil
+                    )
+                }
             }
         }
     }
 
-    // MARK: - Helper Methods
     private func commitAndDismiss() {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            onSubmit(trimmed)
-        }
+        if !trimmed.isEmpty { onSubmit(trimmed) }
         isPresented = false
     }
 }
-
-#if DEBUG
-/// Preview provider for AddNoteOverlay
-struct AddNoteOverlay_Previews: PreviewProvider {
-    static var previews: some View {
-        ZStack {
-            Color.gray
-            AddNoteOverlay(isPresented: .constant(true)) { _ in }
-        }
-    }
-}
-#endif
