@@ -25,7 +25,7 @@ struct ContentView: View {
                     headerBar
                     NoteList(currentFolder: $currentFolder, store: store)
                     Spacer()
-                    bottomButtons
+                    bottomButtons  // Now with no surrounding box
                 }
                 .navigationBarHidden(true)
                 .navigationDestination(for: NavigationDestination.self) { destination in
@@ -82,7 +82,7 @@ struct ContentView: View {
         .padding(.top)
     }
 
-    // MARK: - Bottom Toolbar
+    // MARK: - Bottom Toolbar (unstyled container)
     private var bottomButtons: some View {
         HStack(spacing: 16) {
             settingsButton
@@ -91,58 +91,48 @@ struct ContentView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .background(Color(UIColor.systemBackground).opacity(0.9))
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
-        .padding(.bottom, 8)
     }
 
     private var settingsButton: some View {
         Button(action: { nav.pushView(.settings) }) {
             VStack(spacing: 6) {
                 Image(systemName: "person.fill")
-                    .font(.title)            // increased icon size
+                    .font(.title)
                 Text("Settings")
-                    .font(.subheadline)      // increased label size
+                    .font(.subheadline)
             }
             .frame(maxWidth: .infinity, minHeight: 70)
         }
         .buttonStyle(.borderedProminent)
         .tint(Color.purple)
-        .buttonBorderShape(.roundedRectangle)
-        .controlSize(.large)
     }
 
     private var searchButton: some View {
         Button(action: { showingSearch = true }) {
             VStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
-                    .font(.title)            // increased icon size
+                    .font(.title)
                 Text("Search")
-                    .font(.subheadline)      // increased label size
+                    .font(.subheadline)
             }
             .frame(maxWidth: .infinity, minHeight: 70)
         }
         .buttonStyle(.borderedProminent)
         .tint(Color(red: 0.9, green: 0.2, blue: 0.4))
-        .buttonBorderShape(.roundedRectangle)
-        .controlSize(.large)
     }
 
     private var addButton: some View {
         Button(action: { showingAdd = true }) {
             VStack(spacing: 6) {
                 Image(systemName: "plus.circle.fill")
-                    .font(.title)            // increased icon size
+                    .font(.title)
                 Text("Add Note")
-                    .font(.subheadline)      // increased label size
+                    .font(.subheadline)
             }
             .frame(maxWidth: .infinity, minHeight: 70)
         }
         .buttonStyle(.borderedProminent)
         .tint(Color.green)
-        .buttonBorderShape(.roundedRectangle)
-        .controlSize(.large)
     }
 }
 

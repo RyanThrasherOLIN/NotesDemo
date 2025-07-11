@@ -1,134 +1,153 @@
-///
-/// RecordingView.swift
-/// NotesDemo
-///
-/// Full-screen overlay for recording audio, converting the recording to MP3,
-/// and saving it into the application's RecordingStore.
-///
 import SwiftUI
 import AVFoundation
 import SwiftLAME
 
-/// A view that manages audio recording in M4A format,
-/// converts the file to MP3 upon stopping, and
-/// persists the result in `RecordingStore`.
+/// A streamlined overlay for audio recording.
+/// Automatically starts recording on appear,
+/// auto-stops after silence, and allows manual stop via button.
 struct RecordingView: View {
     // MARK: - Presentation Binding
-    /// Binding to control the presentation of this overlay.
     @Binding var isPresented: Bool
 
-    // MARK: - Environment Objects
-    /// Shared store where completed recordings are saved.
+    // MARK: - Environment
     @EnvironmentObject var recordingStore: RecordingStore
 
     // MARK: - Recording State
-    /// Underlying AVAudioRecorder instance for capturing audio.
     @State private var recorder: AVAudioRecorder?
-    /// Temporary file URL for M4A recording.
     @State private var tempURL: URL?
-    /// Flag tracking whether recording is active.
     @State private var isRecording = false
-    /// Animation trigger for the pulsing record button.
     @State private var pulse = false
 
-    // MARK: - Initializer
-    /// Initializes the view with a binding controlling its presentation.
-    init(isPresented: Binding<Bool>) {
-        self._isPresented = isPresented
-    }
+    // MARK: - Silence Detection
+    @State private var meterTimer: Timer?
+    @State private var silenceDuration: TimeInterval = 0
+    private let meterInterval: TimeInterval = 0.2
+    private let silenceThreshold: TimeInterval = 2.0
+    private let silenceLevel: Float = -40 // dB
 
-    // MARK: - View Body
     var body: some View {
         ZStack {
-            // Background dimming with blur effect
-            Color.black.opacity(0.4)
-                .background(.ultraThinMaterial)
+            // Light blurred background
+            VisualEffectView(style: .systemUltraThinMaterial)
                 .ignoresSafeArea()
+                .accessibilityHidden(true)
 
             VStack {
-                Spacer()
-                // Main record/stop button
-                Button {
-                    // Toggle recording state and perform appropriate action
-                    if isRecording {
-                        Task {
-                            if let recording = await stopAndConvert(), let transcript = await recordingStore.speechToText(recording) {
-                                print(transcript)
-                            }
-                        }
-                    } else {
-                        startRecording()
+                // Header with cancel/back
+                HStack {
+                    Button(action: cancelRecording) {
+                        Image(systemName: "xmark")
+                            .font(.title)
+                            .foregroundColor(.primary)
                     }
-                    isRecording.toggle()
-                } label: {
+                    .accessibilityLabel("Cancel recording")
+                    Spacer()
+                }
+                .padding()
+
+                Spacer()
+
+                // Recording button stops when tapped
+                Button(action: finishRecording) {
                     RecordButton(isRecording: isRecording, pulse: pulse)
                 }
+                .accessibilityLabel(isRecording ? "Stop recording" : "Start recording")
+                .accessibilityHint(isRecording ? "Double tap to stop recording" : "Recording has already started")
+
                 Spacer()
+
+                // Status text
+                Text(isRecording ? "Recording… Tap button to stop." : "Recording stopped.")
+                    .font(.body)
+                    .foregroundColor(.primary)
+                    .padding(.bottom)
             }
         }
-        // Start pulsing animation and auto-begin recording on appear
         .onAppear {
+            // animate and start
             withAnimation(.easeOut(duration: 1).repeatForever(autoreverses: false)) {
                 pulse = true
             }
-            startRecording()
-            isRecording = true
+            beginRecording()
+        }
+        .onDisappear {
+            cleanupMeters()
         }
     }
 
-    // MARK: - Recording Control Methods
-    /// Configures and starts the AVAudioRecorder, saving to a temporary M4A file.
-    private func startRecording() {
+    // MARK: - Recording Control
+    private func beginRecording() {
+        isRecording = true
+        silenceDuration = 0
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playAndRecord, mode: .default)
+        try? session.setCategory(.record, mode: .default)
         try? session.setActive(true)
 
-        // Generate a unique temporary file URL
-        let tmpDir = FileManager.default.temporaryDirectory
-        let fileURL = tmpDir.appendingPathComponent("rec_\(UUID()).m4a")
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("rec_\(UUID()).m4a")
         tempURL = fileURL
 
-        // Recorder settings: AAC format, 12 kHz sample rate, mono channel, high quality
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 44_100,
+            AVSampleRateKey: 44100,
             AVNumberOfChannelsKey: 1,
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
         ]
         recorder = try? AVAudioRecorder(url: fileURL, settings: settings)
+        recorder?.isMeteringEnabled = true
         recorder?.record()
+
+        meterTimer = Timer.scheduledTimer(withTimeInterval: meterInterval, repeats: true) { _ in
+            guard let r = recorder else { return }
+            r.updateMeters()
+            if r.averagePower(forChannel: 0) < silenceLevel {
+                silenceDuration += meterInterval
+                if silenceDuration >= silenceThreshold {
+                    finishRecording()
+                }
+            } else {
+                silenceDuration = 0
+            }
+        }
     }
 
-    /// Stops the recorder, converts the M4A file to MP3 using SwiftLAME,
-    /// and saves the resulting recording to `RecordingStore`.
-    private func stopAndConvert() async -> Recording? {
+    private func finishRecording() {
+        guard isRecording else { return }
+        cleanupMeters()
         recorder?.stop()
+        isRecording = false
+        Task { _ = await convertAndSave() }
+    }
+
+    private func cancelRecording() {
+        cleanupMeters()
+        recorder?.stop()
+        isPresented = false
+    }
+
+    private func cleanupMeters() {
+        meterTimer?.invalidate()
+        meterTimer = nil
+    }
+
+    private func convertAndSave() async -> Recording? {
         guard let src = tempURL else {
-            // If no source URL, dismiss without saving
-            isPresented = false
+            await MainActor.run { isPresented = false }
             return nil
         }
-
-        // Destination URL: same base name with `.mp3` extension
         let dst = src.deletingPathExtension().appendingPathExtension("mp3")
-
-        // Configure MP3 encoding: 44.1 kHz, constant 128 kbps, best quality
         let config = LameConfiguration(
             sampleRate: .custom(44100),
             bitrateMode: .constant(128),
             quality: .best
         )
-
         do {
-            // Perform asynchronous MP3 encoding
             let encoder = try SwiftLameEncoder(
                 sourceUrl: src,
                 configuration: config,
                 destinationUrl: dst
             )
             try await encoder.encode(priority: .userInitiated)
-
-            // Create a Recording model and add it to the store on the main thread
             let rec = Recording(url: dst, createdAt: Date())
             await MainActor.run {
                 recordingStore.add(rec)
@@ -137,39 +156,48 @@ struct RecordingView: View {
             return rec
         } catch {
             print("MP3 encode failed:", error)
-            // On failure, simply dismiss the overlay
             await MainActor.run { isPresented = false }
             return nil
         }
     }
 }
 
-// MARK: - Record Button Subview
-/// A circular button with animated pulsing effect,
-/// displaying either a mic or stop icon based on recording state.
-private struct RecordButton: View {
-    /// Whether recording is currently active
-    let isRecording: Bool
-    /// Controls pulsing animation scale and opacity
-    let pulse: Bool
+/// A UIViewRepresentable wrapper for UIKit blur effects.
+private struct VisualEffectView: UIViewRepresentable {
+    let style: UIBlurEffect.Style
+    func makeUIView(context: Context) -> UIVisualEffectView {
+        UIVisualEffectView(effect: UIBlurEffect(style: style))
+    }
+    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {}
+}
 
+// MARK: - Record Button Subview
+private struct RecordButton: View {
+    let isRecording: Bool
+    let pulse: Bool
     var body: some View {
         ZStack {
-            // Static red circle background
             Circle()
-                .fill(.red)
-                .frame(width: 150, height: 150)
+                .fill(Color.red)
+                .frame(width: 160, height: 160)
                 .overlay(
-                    // Animated stroke for pulsing effect
                     Circle()
-                        .stroke(.red.opacity(0.7), lineWidth: 12)
-                        .scaleEffect(pulse ? 1.3 : 1)
+                        .stroke(Color.red.opacity(0.7), lineWidth: 12)
+                        .scaleEffect(pulse ? 1.4 : 1)
                         .opacity(pulse ? 0 : 1)
                 )
-            // Icon toggles between stop and mic
             Image(systemName: isRecording ? "stop.fill" : "mic.fill")
                 .font(.system(size: 60))
                 .foregroundColor(.white)
         }
     }
 }
+
+#if DEBUG
+struct RecordingView_Previews: PreviewProvider {
+    static var previews: some View {
+        RecordingView(isPresented: .constant(true))
+            .environmentObject(RecordingStore())
+    }
+}
+#endif

@@ -31,7 +31,7 @@ struct SearchOverlay: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // Dimmed background
+                // Dimmed, blurred background
                 Rectangle()
                     .fill(.ultraThinMaterial)
                     .ignoresSafeArea()
@@ -39,7 +39,7 @@ struct SearchOverlay: View {
                     .accessibilityHidden(true)
 
                 VStack(spacing: 20) {
-                    // Top bar
+                    // Top bar with back button
                     HStack {
                         Button { isPresented = false } label: {
                             Image(systemName: "chevron.backward")
@@ -52,16 +52,16 @@ struct SearchOverlay: View {
                     .padding(.horizontal, 30)
                     .padding(.top, UIApplication.shared.windows.first?.safeAreaInsets.top ?? 20)
 
-                    // Search field with mic button
-                    HStack {
+                    // Search field with enhanced contrast
+                    HStack(spacing: 12) {
                         Image(systemName: "magnifyingglass")
+                            .foregroundColor(.secondary)
                         TextField("Ask your question…", text: $query)
                             .focused($isSearchFieldFocused)
                             .submitLabel(.go)
                             .onSubmit { Task { await performSearch() } }
                             .accessibilityLabel("Search field")
                             .accessibilityHint("Type your question and press Go")
-
                         Button(action: { showingRecorder = true }) {
                             Image(systemName: "mic.circle.fill")
                                 .font(.title2)
@@ -69,9 +69,15 @@ struct SearchOverlay: View {
                         .accessibilityLabel("Record voice query")
                         .accessibilityHint("Tap to record and transcribe your question")
                     }
-                    .padding()
-                    .background(.regularMaterial)
-                    .cornerRadius(12)
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(UIColor.systemGray5).opacity(0.9))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color(UIColor.systemGray3), lineWidth: 1)
+                    )
                     .padding(.horizontal)
 
                     // Results or loading indicator
@@ -81,12 +87,12 @@ struct SearchOverlay: View {
                     } else if !responseText.isEmpty {
                         List {
                             VStack(alignment: .leading, spacing: 12) {
-                                // Result text (tap does nothing)
+                                // Result text
                                 Text(responseText)
                                     .padding(12)
                                     .background(
                                         RoundedRectangle(cornerRadius: 16)
-                                            .fill(Color(UIColor.systemGray5))
+                                            .fill(Color(UIColor.systemGray6))
                                     )
                                     .accessibilityLabel("Search result")
                                     .accessibilityValue(responseText)
@@ -115,7 +121,6 @@ struct SearchOverlay: View {
                                         rating: 1,
                                         color: .green
                                     )
-
                                     feedbackButton(
                                         icon: "hand.thumbsdown",
                                         filledIcon: "hand.thumbsdown.fill",
@@ -139,18 +144,18 @@ struct SearchOverlay: View {
                 }
                 .accessibilityElement(children: .contain)
                 .accessibilityAddTraits(.isModal)
-            }
-            .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    isSearchFieldFocused = true
-                    UIAccessibility.post(notification: .layoutChanged, argument: nil)
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        isSearchFieldFocused = true
+                        UIAccessibility.post(notification: .layoutChanged, argument: nil)
+                    }
                 }
-            }
-            // Voice recorder cover
-            .fullScreenCover(isPresented: $showingRecorder, onDismiss: handleVoiceQuery) {
-                RecordingView(isPresented: $showingRecorder)
-                    .environmentObject(recordingStore)
-                    .ignoresSafeArea()
+                // Voice recorder cover
+                .fullScreenCover(isPresented: $showingRecorder, onDismiss: handleVoiceQuery) {
+                    RecordingView(isPresented: $showingRecorder)
+                        .environmentObject(recordingStore)
+                        .ignoresSafeArea()
+                }
             }
         }
     }
@@ -159,19 +164,12 @@ struct SearchOverlay: View {
     private func performSearch() async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-
-        // reset feedback
         feedbackGiven = false
         selectedFeedback = nil
-
         isLoading = true
         defer { isLoading = false }
-
         do {
-            let fetched = try await noteStore.fetchTopNotes(
-                question: trimmed,
-                k: kResults
-            )
+            let fetched = try await noteStore.fetchTopNotes(question: trimmed, k: kResults)
             await MainActor.run {
                 answers = fetched
                 currentIndex = 0
@@ -187,10 +185,8 @@ struct SearchOverlay: View {
 
     private func refreshNextAnswer() {
         guard currentIndex + 1 < answers.count else { return }
-
         feedbackGiven = false
         selectedFeedback = nil
-
         currentIndex += 1
         responseText = answers[currentIndex]
     }
@@ -198,19 +194,11 @@ struct SearchOverlay: View {
     // MARK: - Feedback Integration
     private func submitFeedback(_ rating: Int) {
         let isPair = (rating == 1)
-        noteStore.submitFeedback(
-            question: query,
-            answer: responseText,
-            isPair: isPair
-        )
+        noteStore.submitFeedback(question: query, answer: responseText, isPair: isPair)
         print("Feedback request sent → username: \(UserDefaults.standard.string(forKey: "username") ?? "[none]"), question: \"\(query)\", answer: \"\(responseText)\", is_pair: \(isPair)")
     }
 
-    private func feedbackButton(icon: String,
-                                filledIcon: String,
-                                label: String,
-                                rating: Int,
-                                color: Color) -> some View {
+    private func feedbackButton(icon: String, filledIcon: String, label: String, rating: Int, color: Color) -> some View {
         Button(action: {
             withAnimation(.spring()) {
                 selectedFeedback = rating
