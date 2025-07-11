@@ -6,13 +6,15 @@ struct NoteDetailView: View {
     let folder: String
     let noteTitle: String
 
-    // MARK: Environment Store
+    // MARK: Environment Stores
     @EnvironmentObject private var notesStore: NoteStore
+    @EnvironmentObject private var recordingStore: RecordingStore
 
     // MARK: Local State
     @State private var newMessage: String = ""
     @State private var editingId: String? = nil
     @State private var editingText: String = ""
+    @State private var showingRecorder: Bool = false
     @FocusState private var inputFocused: Bool
     @FocusState private var editingFocused: Bool
 
@@ -29,8 +31,9 @@ struct NoteDetailView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 8) {
-                        if let folderNotes = notesStore.notesByFolder[folder], let noteBook = folderNotes[noteTitle] {
-                            ForEach(noteBook.notes, id: \.id) { msg in
+                        if let folderNotes = notesStore.notesByFolder[folder],
+                           let noteBook = folderNotes[noteTitle] {
+                            ForEach(noteBook.notes) { msg in
                                 messageRow(for: msg)
                                     .id(msg.id)
                             }
@@ -42,7 +45,7 @@ struct NoteDetailView: View {
 
             Divider()
 
-            // New message input is hidden/disabled when editing
+            // New message input (enabled only when not editing)
             if editingId == nil {
                 HStack(spacing: 8) {
                     TextField("Type a message…", text: $newMessage)
@@ -53,6 +56,7 @@ struct NoteDetailView: View {
                         .submitLabel(.send)
                         .onSubmit { sendMessage() }
 
+                    // Send text message
                     Button(action: sendMessage) {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.system(size: 28))
@@ -62,6 +66,14 @@ struct NoteDetailView: View {
                                 : "Double tap to send message")
                     }
                     .disabled(newMessage.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                    // Record voice note button
+                    Button(action: { showingRecorder = true }) {
+                        Image(systemName: "mic.circle.fill")
+                            .font(.system(size: 28))
+                            .accessibilityLabel("Record voice note")
+                            .accessibilityHint("Record and transcribe voice note")
+                    }
                 }
                 .padding()
                 .background(Color(UIColor.systemBackground)
@@ -77,11 +89,16 @@ struct NoteDetailView: View {
                 }
             }
         }
+        // Present full-screen recorder and handle transcript insertion
+        .fullScreenCover(isPresented: $showingRecorder, onDismiss: handleVoiceNoteDismiss) {
+            RecordingView(isPresented: $showingRecorder)
+                .environmentObject(recordingStore)
+                .ignoresSafeArea()
+        }
     }
 
     @ViewBuilder
     private func messageRow(for msg: Note) -> some View {
-        // Hide all other messages from VoiceOver when editing
         Group {
             if editingId == msg.id {
                 // EDIT MODE
@@ -171,7 +188,7 @@ struct NoteDetailView: View {
         .accessibilityHidden(editingId != nil && editingId != msg.id)
     }
 
-    // MARK: Actions
+    // MARK: - Actions
     private func sendMessage() {
         let text = newMessage.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
@@ -189,12 +206,23 @@ struct NoteDetailView: View {
     }
 
     private func deleteMessage(id: String) {
-        // Dismiss editing if needed
         editingId = nil
         editingText = ""
         inputFocused = true
-        // Call NoteStore delete
         notesStore.deleteNote(id: id, notebook: noteTitle, folder: folder)
+    }
+
+    /// After recording dismisses, transcribe latest recording and insert into message field
+    private func handleVoiceNoteDismiss() {
+        guard let rec = recordingStore.recordings.first else { return }
+        Task {
+            if let text = await recordingStore.speechToText(rec) {
+                await MainActor.run {
+                    newMessage = text
+                    inputFocused = true
+                }
+            }
+        }
     }
 }
 
@@ -202,8 +230,9 @@ struct NoteDetailView: View {
 struct NoteDetailView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationStack {
-            NoteDetailView(folder: "default", noteTitle: "Sample")
+            NoteDetailView(folder: "Notes", noteTitle: "Sample")
                 .environmentObject(NoteStore())
+                .environmentObject(RecordingStore())
         }
     }
 }
