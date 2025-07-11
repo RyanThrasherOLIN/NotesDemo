@@ -1,5 +1,4 @@
 // SearchOverlay.swift
-// SearchOverlay.swift
 
 import SwiftUI
 import UIKit  // for UIAccessibility
@@ -70,6 +69,7 @@ struct SearchOverlay: View {
                 } else if !responseText.isEmpty {
                     List {
                         VStack(alignment: .leading, spacing: 12) {
+                            // Result text
                             Text(responseText)
                                 .padding(12)
                                 .background(
@@ -80,6 +80,7 @@ struct SearchOverlay: View {
                                 .accessibilityValue(responseText)
                                 .accessibilityFocused($isResultFocused)
 
+                            // Refresh button
                             Button(action: refreshNextAnswer) {
                                 HStack {
                                     Image(systemName: "arrow.clockwise")
@@ -91,6 +92,46 @@ struct SearchOverlay: View {
                             .accessibilityLabel("Refresh note")
                             .accessibilityHint("Load the next relevant result")
                             .tint(.blue)
+
+                            // Feedback buttons
+                            HStack(spacing: 30) {
+                                // Thumbs Up (green)
+                                Button(action: {
+                                    submitFeedback(1)
+                                }) {
+                                    HStack {
+                                        Image(systemName: "hand.thumbsup")
+                                            .font(.headline)
+                                        Text("Thumbs Up")
+                                            .font(.headline)
+                                    }
+                                    .padding(.vertical, 6)
+                                    .padding(.horizontal, 12)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.green)
+                                .accessibilityLabel("Thumbs up")
+                                .accessibilityHint("Send positive feedback")
+
+                                // Thumbs Down (red)
+                                Button(action: {
+                                    submitFeedback(0)
+                                }) {
+                                    HStack {
+                                        Image(systemName: "hand.thumbsdown")
+                                            .font(.headline)
+                                        Text("Thumbs Down")
+                                            .font(.headline)
+                                    }
+                                    .padding(.vertical, 6)
+                                    .padding(.horizontal, 12)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.red)
+                                .accessibilityLabel("Thumbs down")
+                                .accessibilityHint("Send negative feedback")
+                            }
+                            .padding(.top, 20)
                         }
                         .padding(.vertical, 8)
                         .listRowSeparator(.hidden)
@@ -127,10 +168,10 @@ struct SearchOverlay: View {
                 k: kResults
             )
             await MainActor.run {
-                self.answers = fetched
-                self.currentIndex = 0
-                self.responseText = fetched.first ?? "No results found."
-                self.isResultFocused = true
+                answers = fetched
+                currentIndex = 0
+                responseText = fetched.first ?? "No results found."
+                isResultFocused = true
             }
         } catch {
             await MainActor.run {
@@ -143,6 +184,18 @@ struct SearchOverlay: View {
         guard currentIndex + 1 < answers.count else { return }
         currentIndex += 1
         responseText = answers[currentIndex]
+    }
+
+    // MARK: - Feedback Integration
+    private func submitFeedback(_ rating: Int) {
+        let isPair = rating == 1
+        noteStore.submitFeedback(
+            question: query,
+            answer: responseText,
+            isPair: isPair
+        )
+        // console confirmation
+        print("Feedback request sent → username: \(UserDefaults.standard.string(forKey: "username") ?? "[none]"), question: \"\(query)\", answer: \"\(responseText)\", is_pair: \(isPair)")
     }
 }
 

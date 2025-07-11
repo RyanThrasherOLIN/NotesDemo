@@ -165,7 +165,7 @@ struct ContentView: View {
             }
 
             CircleButton(image: "plus", bg: .green,
-                         accessibilityLabel: "Add note") {
+                         accessibilityLabel: "Add notebook") {
                 showingAdd = true
             }
         }

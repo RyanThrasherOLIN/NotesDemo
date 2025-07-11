@@ -1,5 +1,4 @@
 // NoteStore.swift
-// NoteStore.swift
 
 import Foundation
 import UIKit    // for UIDevice
@@ -19,6 +18,14 @@ private struct GetResponseRequest: Codable {
     let device_id: String
     let question: String
     let k: String
+}
+
+/// Payload sent to POST /submit_feedback for user feedback.
+private struct SubmitFeedbackRequest: Codable {
+    let username: String
+    let question: String
+    let answer: String
+    let is_pair: Bool
 }
 
 /// Representation of a note returned by GET /get_user_notes.
@@ -79,7 +86,7 @@ final class NoteStore: ObservableObject {
 
         URLSession.shared.dataTask(with: url) { data, _, error in
             if let error = error {
-                print("fetchUserNotes error: ", error)
+                print("fetchUserNotes error:", error)
                 return
             }
             guard let data = data else { return }
@@ -112,7 +119,7 @@ final class NoteStore: ObservableObject {
                     }
                 }
             } catch {
-                print("fetchUserNotes decode error: ", error)
+                print("fetchUserNotes decode error:", error)
             }
         }.resume()
     }
@@ -141,20 +148,22 @@ final class NoteStore: ObservableObject {
             folder: folder,
             notebook: title
         )
-        do { request.httpBody = try JSONEncoder().encode(payload) }
-        catch {
-            print("addNote payload encoding failed: ", error)
+        do {
+            request.httpBody = try JSONEncoder().encode(payload)
+        } catch {
+            print("addNote payload encoding failed:", error)
             return
         }
 
         URLSession.shared.dataTask(with: request) { data, _, error in
             if let error = error {
-                print("addNote error: ", error)
+                print("addNote error:", error)
                 return
             }
-            guard let data = data,
-                  let returned = try? JSONDecoder().decode([String: String].self, from: data),
-                  let serverID = returned["id"]
+            guard
+                let data = data,
+                let returned = try? JSONDecoder().decode([String: String].self, from: data),
+                let serverID = returned["id"]
             else { return }
 
             DispatchQueue.main.async {
@@ -196,7 +205,7 @@ final class NoteStore: ObservableObject {
 
         URLSession.shared.dataTask(with: request) { _, response, error in
             if let error = error {
-                print("deleteAllNotes error: ", error)
+                print("deleteAllNotes error:", error)
                 return
             }
             if let http = response as? HTTPURLResponse,
@@ -230,15 +239,16 @@ final class NoteStore: ObservableObject {
             "note_id": id,
             "note": text
         ]
-        do { request.httpBody = try JSONEncoder().encode(payload) }
-        catch {
-            print("syncSingleMessage payload encoding failed: ", error)
+        do {
+            request.httpBody = try JSONEncoder().encode(payload)
+        } catch {
+            print("syncSingleMessage payload encoding failed:", error)
             return
         }
 
         URLSession.shared.dataTask(with: request) { _, _, error in
             if let error = error {
-                print("syncSingleMessage error: ", error)
+                print("syncSingleMessage error:", error)
                 return
             }
             DispatchQueue.main.async {
@@ -253,7 +263,7 @@ final class NoteStore: ObservableObject {
     }
 
     // MARK: - New: Fetch Top-K AI Responses
-    /// Requests the top-K responses for a given question from `/get_response?k=...`
+    /// Requests the top-K responses for a given question from `/get_response`.
     func fetchTopNotes(question: String, k: Int) async throws -> [String] {
         let endpoint = baseURL.appendingPathComponent("get_response")
         var request = URLRequest(url: endpoint)
@@ -274,7 +284,6 @@ final class NoteStore: ObservableObject {
         }
 
         let raw = try JSONDecoder().decode([String: String].self, from: data)
-        // Extract and sort answer_N entries
         let sorted = raw.compactMap { key, val -> (Int, String)? in
             guard key.hasPrefix("answer_"),
                   let num = Int(key.dropFirst("answer_".count))
@@ -285,5 +294,42 @@ final class NoteStore: ObservableObject {
         .map { $0.1 }
 
         return sorted
+    }
+
+    // MARK: - New: Submit User Feedback
+    /// Sends a single feedback event to `/submit_feedback`.
+    func submitFeedback(question: String, answer: String, isPair: Bool) {
+        let endpoint = baseURL.appendingPathComponent("submit_feedback")
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Fetch the username from UserDefaults (set via @AppStorage in SettingsView)
+        let username = UserDefaults.standard.string(forKey: "username") ?? ""
+
+        let payload = SubmitFeedbackRequest(
+            username: username,
+            question: question,
+            answer: answer,
+            is_pair: isPair
+        )
+
+        do {
+            request.httpBody = try JSONEncoder().encode(payload)
+        } catch {
+            print("submitFeedback encoding failed:", error)
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { _, response, error in
+            if let error = error {
+                print("submitFeedback error:", error)
+                return
+            }
+            if let http = response as? HTTPURLResponse,
+               !(200...299).contains(http.statusCode) {
+                print("submitFeedback server error: \(http.statusCode)")
+            }
+        }.resume()
     }
 }

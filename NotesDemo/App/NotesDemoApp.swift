@@ -12,7 +12,6 @@ import SwiftUI
 ///
 /// - Initializes and provides shared `ObservableObject`s for:
 ///   - `NoteStore`: manages notes and server sync
-///   - `HiddenLineStore`: syncs individual note lines
 ///   - `RecordingStore`: holds audio recordings
 /// - Injects these stores into the root `ContentView`.
 /// - Initiates a data fetch of user notes upon launch.
