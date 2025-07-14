@@ -33,7 +33,7 @@ struct NoteDetailView: View {
     var body: some View {
         ScrollViewReader { proxy in
             VStack(spacing: 0) {
-                // Messages
+                // MARK: Messages list
                 ScrollView {
                     VStack(spacing: 8) {
                         if messages.isEmpty {
@@ -49,25 +49,16 @@ struct NoteDetailView: View {
                     }
                     .padding(.vertical, 8)
                 }
-                // jump to bottom on appear & when messages change
                 .onAppear {
-                    DispatchQueue.main.async {
-                        if let last = messages.last {
-                            proxy.scrollTo(last.id, anchor: .bottom)
-                        }
-                    }
+                    scrollToBottom(proxy)
                 }
                 .onChange(of: messages) { _ in
-                    DispatchQueue.main.async {
-                        if let last = messages.last {
-                            proxy.scrollTo(last.id, anchor: .bottom)
-                        }
-                    }
+                    scrollToBottom(proxy)
                 }
 
                 Divider()
 
-                // Input bar
+                // MARK: Input bar
                 if editingId == nil {
                     HStack(spacing: 8) {
                         TextField("Type a message…", text: $newMessage)
@@ -97,18 +88,17 @@ struct NoteDetailView: View {
             notesStore.fetchUserNotes()
         }
         .task(id: noteTitle) {
-            DispatchQueue.main.async {
-                if editingId == nil {
-                    inputFocused = true
-                }
+            if editingId == nil {
+                inputFocused = true
             }
         }
-        .fullScreenCover(isPresented: $showingRecorder) {
+        // ← here’s the important bit: pass your handler
+        .fullScreenCover(isPresented: $showingRecorder,
+                         onDismiss: handleVoiceNoteDismiss) {
             RecordingView(isPresented: $showingRecorder)
                 .environmentObject(recordingStore)
                 .ignoresSafeArea()
         }
-        // Custom inline title with larger, bold font
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text(noteTitle)
@@ -118,6 +108,16 @@ struct NoteDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    // MARK: Helpers
+
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        DispatchQueue.main.async {
+            if let last = messages.last {
+                proxy.scrollTo(last.id, anchor: .bottom)
+            }
+        }
+    }
+
     @ViewBuilder
     private func messageRow(for msg: Note) -> some View {
         Group {
@@ -125,83 +125,14 @@ struct NoteDetailView: View {
                 // EDIT MODE
                 HStack {
                     Spacer()
-                    HStack(spacing: 8) {
-                        TextField("", text: $editingText)
-                            .padding(12)
-                            .background(Color(UIColor.systemBackground))
-                            .cornerRadius(16)
-                            .focused($editingFocused)
-                            .onAppear {
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                    UIAccessibility.post(notification: .layoutChanged, argument: nil)
-                                    editingFocused = true
-                                }
-                            }
-                            .accessibilityLabel("Editing message field")
-                            .accessibilityValue(editingText)
-
-                        Button(action: saveEdit) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 22))
-                        }
-                        .accessibilityLabel("Save edits")
-                        .accessibilityHint("Double tap to save changes")
-
-                        Button(role: .destructive) {
-                            deleteMessage(id: msg.id)
-                        } label: {
-                            Image(systemName: "trash.circle.fill")
-                                .font(.system(size: 22))
-                        }
-                        .accessibilityLabel("Delete message")
-                        .accessibilityHint("Double tap to remove this message")
-                    }
-                    .padding(.trailing, 16)
+                    editRow(for: msg)
                 }
                 .accessibilityElement(children: .contain)
             } else {
                 // DISPLAY MODE
                 HStack {
                     Spacer()
-
-                    HStack(spacing: 8) {
-                        Text(msg.text)
-                            .padding(12)
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(16)
-                            .accessibilityLabel("Message")
-                            .accessibilityValue(msg.text)
-
-                        Button(action: {
-                            UIAccessibility.post(notification: .announcement, argument: "Editing message")
-                            editingId = msg.id
-                            editingText = msg.text
-                        }) {
-                            Image(systemName: "pencil.circle.fill")
-                                .font(.system(size: 20))
-                        }
-                        .accessibilityLabel("Edit message")
-                        .accessibilityHint("Double tap to start editing this message")
-                    }
-                    .padding(.trailing, 16)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button {
-                            UIAccessibility.post(notification: .announcement, argument: "Editing message")
-                            editingId = msg.id
-                            editingText = msg.text
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
-                        .tint(.blue)
-
-                        Button(role: .destructive) {
-                            UIAccessibility.post(notification: .announcement, argument: "Message deleted")
-                            deleteMessage(id: msg.id)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
+                    displayRow(for: msg)
                 }
                 .accessibilityElement(children: .contain)
             }
@@ -209,7 +140,87 @@ struct NoteDetailView: View {
         .accessibilityHidden(editingId != nil && editingId != msg.id)
     }
 
-    // MARK: - Actions
+    private func editRow(for msg: Note) -> some View {
+        HStack(spacing: 8) {
+            TextField("", text: $editingText)
+                .padding(12)
+                .background(Color(UIColor.systemBackground))
+                .cornerRadius(16)
+                .focused($editingFocused)
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        UIAccessibility.post(notification: .layoutChanged,
+                                             argument: nil)
+                        editingFocused = true
+                    }
+                }
+                .accessibilityLabel("Editing message field")
+                .accessibilityValue(editingText)
+
+            Button(action: saveEdit) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 22))
+            }
+            .accessibilityLabel("Save edits")
+            .accessibilityHint("Double tap to save changes")
+
+            Button(role: .destructive) {
+                deleteMessage(id: msg.id)
+            } label: {
+                Image(systemName: "trash.circle.fill")
+                    .font(.system(size: 22))
+            }
+            .accessibilityLabel("Delete message")
+            .accessibilityHint("Double tap to remove this message")
+        }
+        .padding(.trailing, 16)
+    }
+
+    private func displayRow(for msg: Note) -> some View {
+        HStack(spacing: 8) {
+            Text(msg.text)
+                .padding(12)
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(16)
+                .accessibilityLabel("Message")
+                .accessibilityValue(msg.text)
+
+            Button(action: {
+                UIAccessibility.post(notification: .announcement,
+                                     argument: "Editing message")
+                editingId = msg.id
+                editingText = msg.text
+            }) {
+                Image(systemName: "pencil.circle.fill")
+                    .font(.system(size: 20))
+            }
+            .accessibilityLabel("Edit message")
+            .accessibilityHint("Double tap to start editing")
+        }
+        .padding(.trailing, 16)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button {
+                UIAccessibility.post(notification: .announcement,
+                                     argument: "Editing message")
+                editingId = msg.id
+                editingText = msg.text
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            .tint(.blue)
+
+            Button(role: .destructive) {
+                UIAccessibility.post(notification: .announcement,
+                                     argument: "Message deleted")
+                deleteMessage(id: msg.id)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
+    // MARK: Actions
 
     private func sendMessage() {
         let text = newMessage.trimmingCharacters(in: .whitespaces)
@@ -221,7 +232,12 @@ struct NoteDetailView: View {
 
     private func saveEdit() {
         guard let id = editingId else { return }
-        notesStore.syncSingleMessage(id: id, text: editingText, folder: folderKey, notebook: noteTitle)
+        notesStore.syncSingleMessage(
+            id: id,
+            text: editingText,
+            folder: folderKey,
+            notebook: noteTitle
+        )
         editingId = nil
         editingText = ""
         inputFocused = true
@@ -231,10 +247,15 @@ struct NoteDetailView: View {
         editingId = nil
         editingText = ""
         inputFocused = true
-        notesStore.deleteNote(id: id, notebook: noteTitle, folder: folderKey)
+        notesStore.deleteNote(
+            id: id,
+            notebook: noteTitle,
+            folder: folderKey
+        )
     }
 
     private func handleVoiceNoteDismiss() {
+        // pull the last recording, transcribe, and insert into the input field
         guard let rec = recordingStore.recordings.first else { return }
         Task {
             if let text = await recordingStore.speechToText(rec) {

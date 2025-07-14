@@ -1,8 +1,10 @@
 // ContentView.swift
+// NotesDemo
+//
+// The main content view of the NotesDemo application.
 
 import SwiftUI
 
-/// The main content view of the NotesDemo application.
 struct ContentView: View {
     // ─── Shared Stores ───────────────────────────────────────
     @EnvironmentObject private var store: NoteStore
@@ -20,6 +22,7 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
+            // Underlying content is hidden from VoiceOver when the search overlay is up
             NavigationStack(path: $nav.path) {
                 VStack(spacing: 0) {
                     headerBar
@@ -43,6 +46,7 @@ struct ContentView: View {
                     }
                 }
             }
+            .accessibilityHidden(showingSearch)
 
             if showingSearch {
                 SearchOverlay(isPresented: $showingSearch)
@@ -124,7 +128,6 @@ struct ContentView: View {
     }
 }
 
-/// NoteList with swipe-to-delete-notebook
 struct NoteList: View {
     @Binding var currentFolder: String
     @EnvironmentObject private var store: NoteStore
@@ -136,7 +139,6 @@ struct NoteList: View {
     var body: some View {
         List {
             if let folderNotes = store.notesByFolder[currentFolder] {
-                // sort by notebook title
                 let sorted = folderNotes.sorted { $0.key < $1.key }
                 ForEach(sorted, id: \.key) { title, _ in
                     NavigationLink(
