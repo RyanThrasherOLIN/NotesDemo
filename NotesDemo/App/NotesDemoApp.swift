@@ -13,6 +13,7 @@ import SwiftUI
 /// - Initializes and provides shared `ObservableObject`s for:
 ///   - `NoteStore`: manages notes and server sync
 ///   - `RecordingStore`: holds audio recordings
+///   - `NavigationStackHandler`: manages navigation stack
 /// - Injects these stores into the root `ContentView`.
 /// - Initiates a data fetch of user notes upon launch.
 @main
@@ -22,15 +23,16 @@ struct NotesDemoApp: App {
     @StateObject private var store = NoteStore()
     /// Store for managing audio recordings within the app.
     @StateObject private var recordingStore = RecordingStore()
+    /// Shared navigation stack handler.
+    @StateObject private var nav = NavigationStackHandler.shared
 
     // MARK: - Scene Definition
     var body: some Scene {
         WindowGroup {
-            // Root content view with environment object injection
             ContentView()
                 .environmentObject(store)
                 .environmentObject(recordingStore)
-                // Perform an initial fetch of user notes when the view appears
+                .environmentObject(nav)           // ← inject nav here
                 .task {
                     store.fetchUserNotes()
                 }

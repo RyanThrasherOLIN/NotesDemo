@@ -8,7 +8,7 @@ struct SearchOverlay: View {
     // MARK: - Environment
     @EnvironmentObject private var noteStore: NoteStore
     @EnvironmentObject private var recordingStore: RecordingStore
-    
+    @EnvironmentObject private var nav: NavigationStackHandler  // ← re-added
 
     // MARK: - Config
     private let kResults = 5
@@ -32,7 +32,7 @@ struct SearchOverlay: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // Blurred, dimmed background
+                // Dimmed background just dismisses the overlay
                 Rectangle()
                     .fill(.ultraThinMaterial)
                     .ignoresSafeArea()
@@ -40,7 +40,7 @@ struct SearchOverlay: View {
                     .accessibilityHidden(true)
 
                 VStack(spacing: 20) {
-                    // Top bar with back button
+                    // Top bar with close button
                     HStack {
                         Button(action: { isPresented = false }) {
                             Image(systemName: "chevron.backward")
@@ -80,13 +80,13 @@ struct SearchOverlay: View {
                     )
                     .padding(.horizontal)
 
-                    // Result area
+                    // Results
                     if isLoading {
                         ProgressView()
                             .accessibilityLabel("Loading results")
                     } else if let resp = currentAnswer {
                         VStack(alignment: .leading, spacing: 20) {
-                            // Note text
+                            // Tappable result bubble
                             Text(resp.answer)
                                 .padding(12)
                                 .background(
@@ -97,7 +97,12 @@ struct SearchOverlay: View {
                                 .accessibilityValue(resp.answer)
                                 .accessibilityFocused($isResultFocused)
                                 .onTapGesture {
-                                    print("Selected note: \(resp.answer)")
+                                    // Navigate into the selected notebook
+                                    nav.pushView(.noteDetail(
+                                        folder: resp.folder,
+                                        noteTitle: resp.notebook
+                                    ))
+                                    isPresented = false
                                 }
 
                             // Refresh button
@@ -145,10 +150,10 @@ struct SearchOverlay: View {
                         UIAccessibility.post(notification: .layoutChanged, argument: nil)
                     }
                 }
+                // Voice recorder sheet
                 .fullScreenCover(isPresented: $showingRecorder, onDismiss: handleVoiceQuery) {
                     RecordingView(isPresented: $showingRecorder)
                         .environmentObject(recordingStore)
-                        
                         .ignoresSafeArea()
                 }
             }
@@ -156,6 +161,7 @@ struct SearchOverlay: View {
     }
 
     // MARK: - Business Logic
+
     private func performSearch() async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -163,6 +169,7 @@ struct SearchOverlay: View {
         feedbackGiven = false
         selectedFeedback = nil
         defer { isLoading = false }
+
         do {
             answers = try await noteStore.fetchTopNotes(question: trimmed, k: kResults)
             currentIndex = 0
@@ -179,7 +186,6 @@ struct SearchOverlay: View {
         selectedFeedback = nil
     }
 
-    // Feedback helper
     private func feedbackButton(icon: String,
                                 filledIcon: String,
                                 label: String,
@@ -227,7 +233,7 @@ struct SearchOverlay_Previews: PreviewProvider {
         SearchOverlay(isPresented: .constant(true))
             .environmentObject(NoteStore())
             .environmentObject(RecordingStore())
-            
+            .environmentObject(NavigationStackHandler.shared)  // ← supply nav here too
     }
 }
 #endif
