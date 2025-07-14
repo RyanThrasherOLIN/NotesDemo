@@ -99,7 +99,7 @@ struct ContentView: View {
             Button { nav.pushView(.settings) } label: {
                 VStack(spacing: 6) {
                     Image(systemName: "person.fill").font(.title)
-                    Text("Settings").font(.subheadline)
+                    Text("User Settings").font(.subheadline)
                 }
                 .frame(maxWidth: .infinity, minHeight: 70)
             }
@@ -108,7 +108,7 @@ struct ContentView: View {
             Button { showingSearch = true } label: {
                 VStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").font(.title)
-                    Text("Search").font(.subheadline)
+                    Text("Search Notes").font(.subheadline)
                 }
                 .frame(maxWidth: .infinity, minHeight: 70)
             }
