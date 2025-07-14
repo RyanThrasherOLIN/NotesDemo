@@ -20,81 +20,77 @@ struct NoteDetailView: View {
     @FocusState private var inputFocused: Bool
     @FocusState private var editingFocused: Bool
 
-    /// Normalize “default” → “Notes”, else capitalize
+    /// “default” → “Notes”, else capitalized folder name
     private var folderKey: String {
         folder.lowercased() == "default" ? "Notes" : folder.capitalized
     }
 
+    /// Current list of messages in this notebook
+    private var messages: [Note] {
+        notesStore.notesByFolder[folderKey]?[noteTitle]?.notes ?? []
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Notebook title
-            Text(noteTitle)
-                .font(.largeTitle.bold())
-                .padding()
-
-            Divider()
-
-            // Messages list
-            ScrollViewReader { proxy in
+        ScrollViewReader { proxy in
+            VStack(spacing: 0) {
+                // Messages
                 ScrollView {
                     VStack(spacing: 8) {
-                        if let folderNotes = notesStore.notesByFolder[folderKey],
-                           let noteBook    = folderNotes[noteTitle],
-                           !noteBook.notes.isEmpty {
-                            ForEach(noteBook.notes) { msg in
-                                messageRow(for: msg)
-                                    .id(msg.id)
-                            }
-                        } else {
+                        if messages.isEmpty {
                             Text("No notes yet.")
                                 .foregroundColor(.secondary)
                                 .padding(.top, 20)
+                        } else {
+                            ForEach(messages) { msg in
+                                messageRow(for: msg)
+                                    .id(msg.id)
+                            }
                         }
                     }
                     .padding(.vertical, 8)
                 }
-                .onChange(of: notesStore.notesByFolder) { _ in
-                    if let last = notesStore.notesByFolder[folderKey]?[noteTitle]?.notes.last {
-                        proxy.scrollTo(last.id, anchor: .bottom)
+                // jump to bottom on appear & when messages change
+                .onAppear {
+                    DispatchQueue.main.async {
+                        if let last = messages.last {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
                     }
                 }
-            }
-
-            Divider()
-
-            // New message input (enabled only when not editing)
-            if editingId == nil {
-                HStack(spacing: 8) {
-                    TextField("Type a message…", text: $newMessage)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($inputFocused)
-                        .accessibilityLabel("New message input field")
-                        .accessibilityHint("Type a new message, then double tap Send")
-                        .submitLabel(.send)
-                        .onSubmit { sendMessage() }
-
-                    Button(action: sendMessage) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 28))
-                            .accessibilityLabel("Send message")
-                            .accessibilityHint(newMessage.trimmingCharacters(in: .whitespaces).isEmpty
-                                ? "Disabled until you type a message"
-                                : "Double tap to send message")
-                    }
-                    .disabled(newMessage.trimmingCharacters(in: .whitespaces).isEmpty)
-
-                    Button(action: { showingRecorder = true }) {
-                        Image(systemName: "mic.circle.fill")
-                            .font(.system(size: 28))
-                            .accessibilityLabel("Record voice note")
-                            .accessibilityHint("Record and transcribe voice note")
+                .onChange(of: messages) { _ in
+                    DispatchQueue.main.async {
+                        if let last = messages.last {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
                     }
                 }
-                .padding()
-                .background(Color(UIColor.systemBackground)
-                                .ignoresSafeArea(edges: .bottom))
-                .accessibilityElement(children: .contain)
-                .accessibilitySortPriority(0)
+
+                Divider()
+
+                // Input bar
+                if editingId == nil {
+                    HStack(spacing: 8) {
+                        TextField("Type a message…", text: $newMessage)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($inputFocused)
+                            .submitLabel(.send)
+                            .onSubmit { sendMessage() }
+
+                        Button(action: sendMessage) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 28))
+                        }
+                        .disabled(newMessage.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                        Button(action: { showingRecorder = true }) {
+                            Image(systemName: "mic.circle.fill")
+                                .font(.system(size: 28))
+                        }
+                    }
+                    .padding()
+                    .background(Color(UIColor.systemBackground)
+                                    .ignoresSafeArea(edges: .bottom))
+                }
             }
         }
         .onAppear {
@@ -107,11 +103,19 @@ struct NoteDetailView: View {
                 }
             }
         }
-        .fullScreenCover(isPresented: $showingRecorder, onDismiss: handleVoiceNoteDismiss) {
+        .fullScreenCover(isPresented: $showingRecorder) {
             RecordingView(isPresented: $showingRecorder)
                 .environmentObject(recordingStore)
                 .ignoresSafeArea()
         }
+        // Custom inline title with larger, bold font
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(noteTitle)
+                    .font(.system(size: 28, weight: .bold))
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     @ViewBuilder
@@ -206,6 +210,7 @@ struct NoteDetailView: View {
     }
 
     // MARK: - Actions
+
     private func sendMessage() {
         let text = newMessage.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
@@ -246,7 +251,7 @@ struct NoteDetailView: View {
 struct NoteDetailView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationStack {
-            NoteDetailView(folder: "Notes", noteTitle: "Sample")
+            NoteDetailView(folder: "default", noteTitle: "Sample")
                 .environmentObject(NoteStore())
                 .environmentObject(RecordingStore())
         }

@@ -24,6 +24,7 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     headerBar
                     NoteList(currentFolder: $currentFolder)
+                        .environmentObject(store)
                     Spacer()
                     bottomButtons
                 }
@@ -39,7 +40,6 @@ struct ContentView: View {
                         NoteDetailView(folder: folder, noteTitle: noteTitle)
                             .environmentObject(store)
                             .environmentObject(recordingStore)
-                            .environmentObject(nav)
                     }
                 }
             }
@@ -50,6 +50,7 @@ struct ContentView: View {
                     .environmentObject(recordingStore)
                     .environmentObject(nav)
             }
+
             if showingAdd {
                 AddNoteOverlay(isPresented: $showingAdd) { title in
                     let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -58,6 +59,7 @@ struct ContentView: View {
                 }
                 .environmentObject(store)
             }
+
             if showingFolders {
                 FolderOverlay(isPresented: $showingFolders,
                               selectedFolder: $currentFolder,
@@ -70,8 +72,12 @@ struct ContentView: View {
     // MARK: – Header Bar
     private var headerBar: some View {
         HStack {
-            Button { showingFolders = true } label: {
-                Image(systemName: "folder").font(.title2)
+            Button {
+                showingFolders = true
+            } label: {
+                Image(systemName: "folder")
+                    .font(.title2)
+                    .accessibilityLabel("Folder menu")
             }
             Spacer()
             Text(currentFolder)
@@ -107,19 +113,20 @@ struct ContentView: View {
             Button { showingAdd = true } label: {
                 VStack(spacing: 6) {
                     Image(systemName: "plus.circle.fill").font(.title)
-                    Text("Add Note").font(.subheadline)
+                    Text("Add Notebook").font(.subheadline)
                 }
                 .frame(maxWidth: .infinity, minHeight: 70)
             }
             .buttonStyle(.borderedProminent).tint(.green)
         }
-        .padding(.horizontal).padding(.vertical, 8)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 }
 
 /// NoteList with swipe-to-delete-notebook
 struct NoteList: View {
-    @Binding private var currentFolder: String
+    @Binding var currentFolder: String
     @EnvironmentObject private var store: NoteStore
 
     init(currentFolder: Binding<String>) {
@@ -129,11 +136,15 @@ struct NoteList: View {
     var body: some View {
         List {
             if let folderNotes = store.notesByFolder[currentFolder] {
-                ForEach(folderNotes.sorted(by: <), id: \.key) { title, _ in
-                    NavigationLink(value: NavigationDestination.noteDetail(
-                        folder: currentFolder,
-                        noteTitle: title
-                    )) {
+                // sort by notebook title
+                let sorted = folderNotes.sorted { $0.key < $1.key }
+                ForEach(sorted, id: \.key) { title, _ in
+                    NavigationLink(
+                        value: NavigationDestination.noteDetail(
+                            folder: currentFolder,
+                            noteTitle: title
+                        )
+                    ) {
                         Text(title)
                             .font(.title2)
                             .padding(.vertical, 6)
