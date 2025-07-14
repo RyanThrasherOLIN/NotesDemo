@@ -47,7 +47,7 @@ struct AddNoteOverlay: View {
 
                 // Input with mic
                 HStack(spacing: 12) {
-                    TextField("Type a new note…", text: $draft)
+                    TextField("Enter Notebook Title", text: $draft)
                         .padding(12)
                         .background(
                             RoundedRectangle(cornerRadius: 8)
@@ -60,7 +60,7 @@ struct AddNoteOverlay: View {
                         Image(systemName: "mic.circle.fill")
                             .font(.title2)
                     }
-                    .accessibilityLabel("Record voice note")
+                    .accessibilityLabel("Record voice notebook title")
                     .accessibilityHint("Record and transcribe a new note")
                 }
                 .padding(.horizontal)
