@@ -49,7 +49,7 @@ private struct ServerNote: Codable {
     let notebook: String
 }
 
-/// **NEW** payload for PUT /update_note
+/// Payload for PUT /update_note
 /// Only sends what the server requires: device_id, note_id, note
 private struct UpdateNotePayload: Codable {
     let device_id: String
@@ -69,6 +69,7 @@ struct NoteBook: Identifiable, Hashable, Comparable {
     let id:    UUID
     let title: String
     var notes: [Note]
+    
     static func < (lhs: NoteBook, rhs: NoteBook) -> Bool {
         lhs.title < rhs.title
     }
@@ -121,7 +122,6 @@ final class NoteStore: ObservableObject {
             guard let data = data else { return }
             do {
                 let serverNotes = try JSONDecoder().decode([ServerNote].self, from: data)
-                // filter out any notebook-title placeholders
                 let filtered = serverNotes.filter { $0.note != $0.notebook }
                 DispatchQueue.main.async {
                     var updated = self.notesByFolder
@@ -208,7 +208,6 @@ final class NoteStore: ObservableObject {
                         : folder.capitalized
                     var all = self.notesByFolder
                     var folderMap = all[folderKey] ?? [:]
-
                     if var book = folderMap[title] {
                         book.notes.append(Note(id: created.id, text: text))
                         folderMap[title] = book
@@ -270,7 +269,6 @@ final class NoteStore: ObservableObject {
                 print("syncSingleMessage bad response: \(http.statusCode) — \(bodyStr)")
                 return
             }
-            // Success: update local model
             DispatchQueue.main.async {
                 var all = self.notesByFolder
                 var fm = all[folder] ?? [:]
@@ -288,12 +286,68 @@ final class NoteStore: ObservableObject {
 
     // MARK: — Deletion
 
+    /// Deletes a single note via DELETE /delete_note/{device_id}/{note_id}
     func deleteNote(id: String, notebook: String, folder: String) {
-        // unchanged
+        let endpoint = baseURL
+            .appendingPathComponent("delete_note")
+            .appendingPathComponent(userID)
+            .appendingPathComponent(id)
+        var req = URLRequest(url: endpoint)
+        req.httpMethod = "DELETE"
+
+        URLSession.shared.dataTask(with: req) { _, resp, error in
+            if let error = error {
+                print("deleteNote network error:", error)
+                return
+            }
+            guard let http = resp as? HTTPURLResponse,
+                  200..<300 ~= http.statusCode else {
+                print("deleteNote bad response")
+                return
+            }
+            DispatchQueue.main.async {
+                var all = self.notesByFolder
+                var fm = all[folder] ?? [:]
+                if var book = fm[notebook] {
+                    book.notes.removeAll { $0.id == id }
+                    fm[notebook] = book
+                    all[folder] = fm
+                    self.notesByFolder = all
+                }
+            }
+        }
+        .resume()
     }
 
+    /// Deletes all notes via DELETE /delete_user_notes/{device_id}
     func deleteAllNotes() {
-        // unchanged
+        let endpoint = baseURL
+            .appendingPathComponent("delete_user_notes")
+            .appendingPathComponent(userID)
+        var req = URLRequest(url: endpoint)
+        req.httpMethod = "DELETE"
+
+        URLSession.shared.dataTask(with: req) { _, resp, error in
+            if let error = error {
+                print("deleteAllNotes network error:", error)
+                return
+            }
+            guard let http = resp as? HTTPURLResponse,
+                  200..<300 ~= http.statusCode else {
+                print("deleteAllNotes bad response")
+                return
+            }
+            // Success: clear everything locally
+            DispatchQueue.main.async {
+                self.notesByFolder = [
+                    "Notes":    [:],
+                    "Work":     [:],
+                    "Personal": [:]
+                ]
+                self.hasFetchedNotes = false
+            }
+        }
+        .resume()
     }
 
     // MARK: — AI / Feedback
@@ -303,14 +357,12 @@ final class NoteStore: ObservableObject {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
         let payload = GetResponseRequest(
             device_id: userID,
             question:  question,
             k:         String(k)
         )
         request.httpBody = try JSONEncoder().encode(payload)
-
         let (data, resp) = try await URLSession.shared.data(for: request)
         guard let http = resp as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
             throw URLError(.badServerResponse)
@@ -323,7 +375,6 @@ final class NoteStore: ObservableObject {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
         let payload = SubmitFeedbackRequest(
             username: userID,
             question: question,
