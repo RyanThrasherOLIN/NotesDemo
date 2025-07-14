@@ -5,8 +5,9 @@
 // and displays the async response. Hides all background content from VoiceOver
 // and moves focus to the search field.
 //
-// Dismissible by tapping outside or tapping the back button.
+// Dismissible by tapping outside or tapping Close.
 // Automatically focuses and announces the search field on appear.
+// After performing a search, moves VoiceOver focus to the first result.
 // Treated as a modal to block underlying UI for accessibility.
 
 import SwiftUI
@@ -50,7 +51,6 @@ struct SearchOverlay: View {
                     .onTapGesture { isPresented = false }
                     .accessibilityHidden(true)
 
-                // Main content — treated as a modal for VoiceOver
                 VStack(spacing: 20) {
                     header
                     searchField
@@ -87,9 +87,7 @@ struct SearchOverlay: View {
             Spacer()
         }
         .padding(.horizontal, 30)
-        .padding(.top,
-                 UIApplication.shared.windows.first?.safeAreaInsets.top
-                 ?? 20)
+        .padding(.top, UIApplication.shared.windows.first?.safeAreaInsets.top ?? 20)
     }
 
     private var searchField: some View {
@@ -169,6 +167,30 @@ struct SearchOverlay: View {
                         color: .red
                     )
                 }
+
+                HStack(spacing: 20) {
+                    Button("New Question") {
+                        query = ""
+                        answers = []
+                        currentIndex = 0
+                        isLoading = false
+                        isSearchFieldFocused = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            UIAccessibility.post(notification: .layoutChanged,
+                                                 argument: nil)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .font(.headline)
+                    .accessibilityLabel("Type a new question")
+
+                    Button("Close") {
+                        isPresented = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .font(.headline)
+                    .accessibilityLabel("Close search overlay")
+                }
             }
             .padding()
             .background(
@@ -188,11 +210,13 @@ struct SearchOverlay: View {
         defer { isLoading = false }
 
         do {
-            answers = try await noteStore.fetchTopNotes(
-                question: trimmed,
-                k: kResults
-            )
+            answers = try await noteStore.fetchTopNotes(question: trimmed, k: kResults)
             currentIndex = 0
+            // after results arrive, move VoiceOver focus to the result bubble
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                isResultFocused = true
+                UIAccessibility.post(notification: .layoutChanged, argument: nil)
+            }
         } catch {
             answers = []
             print("Search error: \(error)")
@@ -204,6 +228,10 @@ struct SearchOverlay: View {
         currentIndex += 1
         feedbackGiven = false
         selectedFeedback = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            isResultFocused = true
+            UIAccessibility.post(notification: .layoutChanged, argument: nil)
+        }
     }
 
     private func feedbackButton(icon: String,
@@ -215,17 +243,11 @@ struct SearchOverlay: View {
             selectedFeedback = rating
             feedbackGiven = true
             if let resp = currentAnswer {
-                noteStore.submitFeedback(
-                    question: query,
-                    answer: resp.answer,
-                    isPair: rating == 1
-                )
+                noteStore.submitFeedback(question: query, answer: resp.answer, isPair: rating == 1)
             }
         } label: {
             HStack {
-                Image(systemName: selectedFeedback == rating
-                              ? filledIcon
-                              : icon)
+                Image(systemName: selectedFeedback == rating ? filledIcon : icon)
                 Text(label)
             }
             .padding(.vertical, 6)

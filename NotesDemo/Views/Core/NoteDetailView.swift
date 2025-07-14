@@ -71,6 +71,7 @@ struct NoteDetailView: View {
                             Image(systemName: "arrow.up.circle.fill")
                                 .font(.system(size: 28))
                         }
+                        .accessibilityLabel("Send note")
                         .disabled(newMessage.trimmingCharacters(in: .whitespaces).isEmpty)
 
                         Button(action: { showingRecorder = true }) {
@@ -92,7 +93,6 @@ struct NoteDetailView: View {
                 inputFocused = true
             }
         }
-        // ← here’s the important bit: pass your handler
         .fullScreenCover(isPresented: $showingRecorder,
                          onDismiss: handleVoiceNoteDismiss) {
             RecordingView(isPresented: $showingRecorder)
@@ -149,8 +149,7 @@ struct NoteDetailView: View {
                 .focused($editingFocused)
                 .onAppear {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        UIAccessibility.post(notification: .layoutChanged,
-                                             argument: nil)
+                        UIAccessibility.post(notification: .layoutChanged, argument: nil)
                         editingFocused = true
                     }
                 }
@@ -187,8 +186,7 @@ struct NoteDetailView: View {
                 .accessibilityValue(msg.text)
 
             Button(action: {
-                UIAccessibility.post(notification: .announcement,
-                                     argument: "Editing message")
+                UIAccessibility.post(notification: .announcement, argument: "Editing message")
                 editingId = msg.id
                 editingText = msg.text
             }) {
@@ -201,8 +199,7 @@ struct NoteDetailView: View {
         .padding(.trailing, 16)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button {
-                UIAccessibility.post(notification: .announcement,
-                                     argument: "Editing message")
+                UIAccessibility.post(notification: .announcement, argument: "Editing message")
                 editingId = msg.id
                 editingText = msg.text
             } label: {
@@ -211,8 +208,7 @@ struct NoteDetailView: View {
             .tint(.blue)
 
             Button(role: .destructive) {
-                UIAccessibility.post(notification: .announcement,
-                                     argument: "Message deleted")
+                UIAccessibility.post(notification: .announcement, argument: "Message deleted")
                 deleteMessage(id: msg.id)
             } label: {
                 Label("Delete", systemImage: "trash")
@@ -255,7 +251,6 @@ struct NoteDetailView: View {
     }
 
     private func handleVoiceNoteDismiss() {
-        // pull the last recording, transcribe, and insert into the input field
         guard let rec = recordingStore.recordings.first else { return }
         Task {
             if let text = await recordingStore.speechToText(rec) {
