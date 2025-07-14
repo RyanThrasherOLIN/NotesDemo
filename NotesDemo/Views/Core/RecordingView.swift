@@ -2,9 +2,8 @@ import SwiftUI
 import AVFoundation
 import SwiftLAME
 
-/// A streamlined overlay for audio recording.
-/// Automatically starts recording on appear,
-/// auto-stops after silence, and allows manual stop via button.
+/// Overlay for audio recording that only starts when the user taps.
+/// Blinks a red dot while recording and repeats the VO hint on start.
 struct RecordingView: View {
     // MARK: - Presentation Binding
     @Binding var isPresented: Bool
@@ -16,7 +15,7 @@ struct RecordingView: View {
     @State private var recorder: AVAudioRecorder?
     @State private var tempURL: URL?
     @State private var isRecording = false
-    @State private var pulse = false
+    @State private var showIndicator = false
 
     // MARK: - Silence Detection
     @State private var meterTimer: Timer?
@@ -27,58 +26,81 @@ struct RecordingView: View {
 
     var body: some View {
         ZStack {
-            // Light blurred background
             VisualEffectView(style: .systemUltraThinMaterial)
-                .ignoresSafeArea()
+                .edgesIgnoringSafeArea(.all)
                 .accessibilityHidden(true)
 
-            VStack {
-                // Header with cancel/back
-                HStack {
-                    Button(action: cancelRecording) {
-                        Image(systemName: "xmark")
-                            .font(.title)
-                            .foregroundColor(.primary)
-                    }
-                    .accessibilityLabel("Cancel recording")
-                    Spacer()
-                }
-                .padding()
-
+            VStack(spacing: 30) {
                 Spacer()
 
-                // Recording button stops when tapped
-                Button(action: finishRecording) {
-                    RecordButton(isRecording: isRecording, pulse: pulse)
+                // Instruction + blinking dot
+                HStack(spacing: 8) {
+                    if isRecording {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 10, height: 10)
+                            .opacity(showIndicator ? 1 : 0)
+                            .animation(
+                                Animation.easeInOut(duration: 0.8)
+                                    .repeatForever(autoreverses: true),
+                                value: showIndicator
+                            )
+                            .accessibilityHidden(true)
+                    }
+
+                    Text(isRecording
+                         ? "Recording… Tap the button below to stop recording."
+                         : "Tap the button below to start recording."
+                    )
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isStaticText)
+                }
+
+                // Start/Stop button
+                Button(action: toggleRecording) {
+                    RecordButton(isRecording: isRecording)
                 }
                 .accessibilityLabel(isRecording ? "Stop recording" : "Start recording")
-                .accessibilityHint(isRecording ? "Double tap to stop recording" : "Recording has already started")
+                .accessibilityHint("Double-tap to \(isRecording ? "stop" : "start") recording")
 
                 Spacer()
-
-                // Status text
-                Text(isRecording ? "Recording… Tap button to stop." : "Recording stopped.")
-                    .font(.body)
-                    .foregroundColor(.primary)
-                    .padding(.bottom)
             }
+            .padding()
         }
         .onAppear {
-            // animate and start
-            withAnimation(.easeOut(duration: 1).repeatForever(autoreverses: false)) {
-                pulse = true
+            // Let VO read initial prompt
+            UIAccessibility.post(
+                notification: .announcement,
+                argument: "Recording screen. Tap the button below to start recording. Tap Again to stop recording."
+            )
+        }
+        .onChange(of: isRecording) { nowRecording in
+            if nowRecording {
+                // show the blinking dot
+                showIndicator = true
+                // re-announce with stop hint
+                UIAccessibility.post(
+                    notification: .announcement,
+                    argument: "Recording… Tap the button below to stop recording."
+                )
+            } else {
+                showIndicator = false
             }
-            beginRecording()
         }
         .onDisappear {
             cleanupMeters()
         }
     }
 
-    // MARK: - Recording Control
+    private func toggleRecording() {
+        isRecording ? finishRecording() : beginRecording()
+    }
+
     private func beginRecording() {
         isRecording = true
         silenceDuration = 0
+
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.record, mode: .default)
         try? session.setActive(true)
@@ -115,14 +137,20 @@ struct RecordingView: View {
         guard isRecording else { return }
         cleanupMeters()
         recorder?.stop()
+        restoreAudioSession()
         isRecording = false
+
+        UIAccessibility.post(
+            notification: .announcement,
+            argument: "Recording stopped."
+        )
+
         Task { _ = await convertAndSave() }
     }
 
-    private func cancelRecording() {
-        cleanupMeters()
-        recorder?.stop()
-        isPresented = false
+    private func restoreAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     private func cleanupMeters() {
@@ -162,7 +190,7 @@ struct RecordingView: View {
     }
 }
 
-/// A UIViewRepresentable wrapper for UIKit blur effects.
+// Blur background
 private struct VisualEffectView: UIViewRepresentable {
     let style: UIBlurEffect.Style
     func makeUIView(context: Context) -> UIVisualEffectView {
@@ -171,25 +199,21 @@ private struct VisualEffectView: UIViewRepresentable {
     func updateUIView(_ uiView: UIVisualEffectView, context: Context) {}
 }
 
-// MARK: - Record Button Subview
+// Record button
 private struct RecordButton: View {
     let isRecording: Bool
-    let pulse: Bool
     var body: some View {
         ZStack {
             Circle()
                 .fill(Color.red)
                 .frame(width: 160, height: 160)
-                .overlay(
-                    Circle()
-                        .stroke(Color.red.opacity(0.7), lineWidth: 12)
-                        .scaleEffect(pulse ? 1.4 : 1)
-                        .opacity(pulse ? 0 : 1)
-                )
+                .shadow(radius: 8)
+
             Image(systemName: isRecording ? "stop.fill" : "mic.fill")
                 .font(.system(size: 60))
                 .foregroundColor(.white)
         }
+        .animation(.easeInOut(duration: 0.1), value: isRecording)
     }
 }
 
