@@ -1,3 +1,5 @@
+// ContentView.swift
+
 import SwiftUI
 
 /// The main content view of the NotesDemo application.
@@ -18,7 +20,6 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // ─── Main NavigationStack ──────────────────────────
             NavigationStack(path: $nav.path) {
                 VStack(spacing: 0) {
                     headerBar
@@ -34,7 +35,6 @@ struct ContentView: View {
                             .environmentObject(store)
                             .environmentObject(recordingStore)
                             .environmentObject(nav)
-
                     case .noteDetail(let folder, let noteTitle):
                         NoteDetailView(folder: folder, noteTitle: noteTitle)
                             .environmentObject(store)
@@ -44,14 +44,12 @@ struct ContentView: View {
                 }
             }
 
-            // ─── Overlays ──────────────────────────────────────
             if showingSearch {
                 SearchOverlay(isPresented: $showingSearch)
                     .environmentObject(store)
                     .environmentObject(recordingStore)
                     .environmentObject(nav)
             }
-
             if showingAdd {
                 AddNoteOverlay(isPresented: $showingAdd) { title in
                     let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -60,14 +58,11 @@ struct ContentView: View {
                 }
                 .environmentObject(store)
             }
-
             if showingFolders {
-                FolderOverlay(
-                    isPresented: $showingFolders,
-                    selectedFolder: $currentFolder,
-                    folders: $folders
-                )
-                .environmentObject(store)
+                FolderOverlay(isPresented: $showingFolders,
+                              selectedFolder: $currentFolder,
+                              folders: $folders)
+                    .environmentObject(store)
             }
         }
     }
@@ -88,15 +83,9 @@ struct ContentView: View {
         .padding(.top)
     }
 
-    // MARK: – Note List
-    private var noteList: some View {
-        NoteList(currentFolder: $currentFolder)
-    }
-
     // MARK: – Bottom Toolbar
     private var bottomButtons: some View {
         HStack(spacing: 16) {
-            // Settings
             Button { nav.pushView(.settings) } label: {
                 VStack(spacing: 6) {
                     Image(systemName: "person.fill").font(.title)
@@ -104,10 +93,8 @@ struct ContentView: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 70)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.purple)
+            .buttonStyle(.borderedProminent).tint(.purple)
 
-            // Search
             Button { showingSearch = true } label: {
                 VStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").font(.title)
@@ -115,10 +102,8 @@ struct ContentView: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 70)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Color(red: 0.9, green: 0.2, blue: 0.4))
+            .buttonStyle(.borderedProminent).tint(Color(red: 0.9, green: 0.2, blue: 0.4))
 
-            // Add Note
             Button { showingAdd = true } label: {
                 VStack(spacing: 6) {
                     Image(systemName: "plus.circle.fill").font(.title)
@@ -126,16 +111,13 @@ struct ContentView: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 70)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
+            .buttonStyle(.borderedProminent).tint(.green)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
+        .padding(.horizontal).padding(.vertical, 8)
     }
 }
 
-
-/// A slimmed-down list that reads its NoteStore from the environment.
+/// NoteList with swipe-to-delete-notebook
 struct NoteList: View {
     @Binding private var currentFolder: String
     @EnvironmentObject private var store: NoteStore
@@ -148,18 +130,21 @@ struct NoteList: View {
         List {
             if let folderNotes = store.notesByFolder[currentFolder] {
                 ForEach(folderNotes.sorted(by: <), id: \.key) { title, _ in
-                    NavigationLink(
-                        value: NavigationDestination.noteDetail(
-                            folder: currentFolder,
-                            noteTitle: title
-                        )
-                    ) {
+                    NavigationLink(value: NavigationDestination.noteDetail(
+                        folder: currentFolder,
+                        noteTitle: title
+                    )) {
                         Text(title)
                             .font(.title2)
                             .padding(.vertical, 6)
                     }
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            store.deleteNoteBook(title: title, in: currentFolder)
+                        } label: {
+                            Label("Delete Notebook", systemImage: "trash")
+                        }
+                    }
                 }
             }
         }
