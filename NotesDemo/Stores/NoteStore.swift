@@ -14,7 +14,6 @@ private struct AddNoteRequest: Codable {
 }
 
 /// Response from POST /add_note
-/// (server returns only the new `id`)
 private struct AddNoteResponse: Codable {
     let id: String
 }
@@ -26,7 +25,7 @@ private struct GetResponseRequest: Codable {
     let k:         String
 }
 
-/// Model for responses from GET /get_response
+/// Model for GET /get_response
 struct AIResponse: Codable, Identifiable {
     let id:       String
     let answer:   String
@@ -50,13 +49,26 @@ private struct ServerNote: Codable {
     let notebook: String
 }
 
+/// **NEW** payload for PUT /update_note
+/// Only sends what the server requires: device_id, note_id, note
+private struct UpdateNotePayload: Codable {
+    let device_id: String
+    let note_id:   String
+    let note:      String
+    
+    enum CodingKeys: String, CodingKey {
+        case device_id
+        case note_id
+        case note
+    }
+}
+
 // MARK: — Local Models
 
 struct NoteBook: Identifiable, Hashable, Comparable {
     let id:    UUID
     let title: String
     var notes: [Note]
-
     static func < (lhs: NoteBook, rhs: NoteBook) -> Bool {
         lhs.title < rhs.title
     }
@@ -69,7 +81,6 @@ struct Note: Identifiable, Hashable {
 
 // MARK: — The Store
 
-/// Manages fetching, adding, deleting, and organizing user notes by folder.
 final class NoteStore: ObservableObject {
     @Published var notesByFolder: [String: [String: NoteBook]] = [
         "Notes":    [:],
@@ -110,6 +121,7 @@ final class NoteStore: ObservableObject {
             guard let data = data else { return }
             do {
                 let serverNotes = try JSONDecoder().decode([ServerNote].self, from: data)
+                // filter out any notebook-title placeholders
                 let filtered = serverNotes.filter { $0.note != $0.notebook }
                 DispatchQueue.main.async {
                     var updated = self.notesByFolder
@@ -170,12 +182,12 @@ final class NoteStore: ObservableObject {
             folder:    folder,
             notebook:  title
         )
-        do {
-            req.httpBody = try JSONEncoder().encode(payload)
-        } catch {
-            print("addNote encoding error:", error)
+
+        guard let body = try? JSONEncoder().encode(payload) else {
+            print("addNote encoding error")
             return
         }
+        req.httpBody = body
 
         URLSession.shared.dataTask(with: req) { data, resp, error in
             if let error = error {
@@ -188,16 +200,12 @@ final class NoteStore: ObservableObject {
                 print("addNote bad response")
                 return
             }
-
             do {
                 let created = try JSONDecoder().decode(AddNoteResponse.self, from: data)
                 DispatchQueue.main.async {
-                    // normalize the folder key just like fetchUserNotes does
-                    let folderKey: String = folder.lowercased() == "default"
+                    let folderKey = folder.lowercased() == "default"
                         ? "Notes"
                         : folder.capitalized
-
-                    // pull out current state
                     var all = self.notesByFolder
                     var folderMap = all[folderKey] ?? [:]
 
@@ -211,12 +219,68 @@ final class NoteStore: ObservableObject {
                             notes: [Note(id: created.id, text: text)]
                         )
                     }
-
                     all[folderKey] = folderMap
                     self.notesByFolder = all
                 }
             } catch {
                 print("addNote decode error:", error)
+            }
+        }
+        .resume()
+    }
+
+    // MARK: — Editing a Single Message
+
+    /// Sends only the required fields to update a note on the server,
+    /// then patches the local store on success.
+    func syncSingleMessage(
+        id: String,
+        text: String,
+        folder: String,
+        notebook: String
+    ) {
+        let endpoint = baseURL.appendingPathComponent("update_note")
+        var req = URLRequest(url: endpoint)
+        req.httpMethod = "PUT"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let payload = UpdateNotePayload(
+            device_id: userID,
+            note_id:   id,
+            note:      text
+        )
+
+        guard let body = try? JSONEncoder().encode(payload) else {
+            print("syncSingleMessage encoding error")
+            return
+        }
+        req.httpBody = body
+
+        URLSession.shared.dataTask(with: req) { data, resp, error in
+            if let error = error {
+                print("syncSingleMessage network error:", error)
+                return
+            }
+            guard let http = resp as? HTTPURLResponse else {
+                print("syncSingleMessage: no HTTPURLResponse")
+                return
+            }
+            if !(200..<300 ~= http.statusCode) {
+                let bodyStr = data.flatMap { String(data: $0, encoding: .utf8) } ?? "—empty—"
+                print("syncSingleMessage bad response: \(http.statusCode) — \(bodyStr)")
+                return
+            }
+            // Success: update local model
+            DispatchQueue.main.async {
+                var all = self.notesByFolder
+                var fm = all[folder] ?? [:]
+                if var book = fm[notebook],
+                   let idx = book.notes.firstIndex(where: { $0.id == id }) {
+                    book.notes[idx].text = text
+                    fm[notebook] = book
+                    all[folder] = fm
+                    self.notesByFolder = all
+                }
             }
         }
         .resume()
