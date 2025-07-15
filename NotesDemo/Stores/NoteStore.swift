@@ -2,6 +2,7 @@
 
 import Foundation
 import UIKit    // for UIDevice
+import Combine  // for ObservableObject & @Published
 
 // MARK: — Networking Models
 
@@ -81,6 +82,10 @@ final class NoteStore: ObservableObject {
         "Work":     [:],
         "Personal": [:]
     ]
+
+    // MARK: — Highlighting
+    /// ID of the note to highlight when opening a detail view
+    @Published var highlightedNoteID: String? = nil
 
     private var userID: String {
         UIDevice.current.identifierForVendor!.uuidString
@@ -188,8 +193,7 @@ final class NoteStore: ObservableObject {
                         folderMap[title] = book
                     } else {
                         folderMap[title] = NoteBook(
-                            id: UUID(),
-                            title: title,
+                            id: UUID(), title: title,
                             notes: [Note(id: created.id, text: text)]
                         )
                     }

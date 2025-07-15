@@ -1,14 +1,4 @@
 // SearchOverlay.swift
-// NotesDemo
-//
-// A true modal overlay that lets users enter a query, sends it to a backend AI service,
-// and displays the async response. Hides all background content from VoiceOver
-// and moves focus to the search field.
-//
-// Dismissible by tapping outside or tapping Close.
-// Automatically focuses and announces the search field on appear.
-// After performing a search, moves VoiceOver focus to the first result.
-// Treated as a modal to block underlying UI for accessibility.
 
 import SwiftUI
 import UIKit
@@ -44,7 +34,6 @@ struct SearchOverlay: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // Dimmed background just dismisses the overlay
                 Rectangle()
                     .fill(.ultraThinMaterial)
                     .ignoresSafeArea()
@@ -135,6 +124,8 @@ struct SearchOverlay: View {
                     .accessibilityValue(resp.answer)
                     .accessibilityFocused($isResultFocused)
                     .onTapGesture {
+                        // Highlight the tapped note
+                        noteStore.highlightedNoteID = resp.id
                         nav.pushView(.noteDetail(
                             folder: resp.folder,
                             noteTitle: resp.notebook
@@ -212,7 +203,6 @@ struct SearchOverlay: View {
         do {
             answers = try await noteStore.fetchTopNotes(question: trimmed, k: kResults)
             currentIndex = 0
-            // after results arrive, move VoiceOver focus to the result bubble
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 isResultFocused = true
                 UIAccessibility.post(notification: .layoutChanged, argument: nil)

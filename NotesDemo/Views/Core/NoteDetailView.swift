@@ -33,7 +33,6 @@ struct NoteDetailView: View {
     var body: some View {
         ScrollViewReader { proxy in
             VStack(spacing: 0) {
-                // MARK: Messages list
                 ScrollView {
                     VStack(spacing: 8) {
                         if messages.isEmpty {
@@ -49,16 +48,11 @@ struct NoteDetailView: View {
                     }
                     .padding(.vertical, 8)
                 }
-                .onAppear {
-                    scrollToBottom(proxy)
-                }
-                .onChange(of: messages) { _ in
-                    scrollToBottom(proxy)
-                }
+                .onAppear { scrollToBottom(proxy) }
+                .onChange(of: messages) { _ in scrollToBottom(proxy) }
 
                 Divider()
 
-                // MARK: Input bar
                 if editingId == nil {
                     HStack(spacing: 8) {
                         TextField("Type a message…", text: $newMessage)
@@ -85,14 +79,8 @@ struct NoteDetailView: View {
                 }
             }
         }
-        .onAppear {
-            notesStore.fetchUserNotes()
-        }
-        .task(id: noteTitle) {
-            if editingId == nil {
-                inputFocused = true
-            }
-        }
+        .onAppear { notesStore.fetchUserNotes() }
+        .task(id: noteTitle) { if editingId == nil { inputFocused = true } }
         .fullScreenCover(isPresented: $showingRecorder,
                          onDismiss: handleVoiceNoteDismiss) {
             RecordingView(isPresented: $showingRecorder)
@@ -108,8 +96,6 @@ struct NoteDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    // MARK: Helpers
-
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         DispatchQueue.main.async {
             if let last = messages.last {
@@ -122,19 +108,11 @@ struct NoteDetailView: View {
     private func messageRow(for msg: Note) -> some View {
         Group {
             if editingId == msg.id {
-                // EDIT MODE
-                HStack {
-                    Spacer()
-                    editRow(for: msg)
-                }
-                .accessibilityElement(children: .contain)
+                HStack { Spacer(); editRow(for: msg) }
+                    .accessibilityElement(children: .contain)
             } else {
-                // DISPLAY MODE
-                HStack {
-                    Spacer()
-                    displayRow(for: msg)
-                }
-                .accessibilityElement(children: .contain)
+                HStack { Spacer(); displayRow(for: msg) }
+                    .accessibilityElement(children: .contain)
             }
         }
         .accessibilityHidden(editingId != nil && editingId != msg.id)
@@ -163,9 +141,7 @@ struct NoteDetailView: View {
             .accessibilityLabel("Save edits")
             .accessibilityHint("Double tap to save changes")
 
-            Button(role: .destructive) {
-                deleteMessage(id: msg.id)
-            } label: {
+            Button(role: .destructive) { deleteMessage(id: msg.id) } label: {
                 Image(systemName: "trash.circle.fill")
                     .font(.system(size: 22))
             }
@@ -175,15 +151,24 @@ struct NoteDetailView: View {
         .padding(.trailing, 16)
     }
 
-    private func displayRow(for msg: Note) -> some View {
+    @ViewBuilder private func displayRow(for msg: Note) -> some View {
+        let isHighlighted = msg.id == notesStore.highlightedNoteID
+
         HStack(spacing: 8) {
             Text(msg.text)
                 .padding(12)
-                .background(Color.blue)
+                .background(isHighlighted ? Color.yellow : Color.blue)
                 .foregroundColor(.white)
                 .cornerRadius(16)
-                .accessibilityLabel("Message")
-                .accessibilityValue(msg.text)
+                .scaleEffect(isHighlighted ? 1.05 : 1.0)
+                .animation(.easeInOut(duration: 0.3), value: notesStore.highlightedNoteID)
+                .onAppear {
+                    if isHighlighted {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            notesStore.highlightedNoteID = nil
+                        }
+                    }
+                }
 
             Button(action: {
                 UIAccessibility.post(notification: .announcement, argument: "Editing message")
