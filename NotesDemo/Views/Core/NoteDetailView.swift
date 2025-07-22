@@ -1,6 +1,5 @@
-// NoteDetailView.swift
-
 import SwiftUI
+import UIKit   // for UIAccessibility
 
 /// Displays and edits a list of Note objects in a chat-style UI
 struct NoteDetailView: View {
@@ -18,7 +17,9 @@ struct NoteDetailView: View {
     @State private var editingText: String     = ""
     @State private var showingRecorder: Bool   = false
     @FocusState private var inputFocused: Bool
+    @AccessibilityFocusState private var a11yFieldFocused: Bool
     @FocusState private var editingFocused: Bool
+    @AccessibilityFocusState private var a11yEditingFieldFocused: Bool
 
     /// “default” → “Notes”, else capitalized folder name
     private var folderKey: String {
@@ -26,7 +27,7 @@ struct NoteDetailView: View {
     }
 
     /// Current list of messages in this notebook
-    private var messages: [Note] {
+        private var messages: [Note] {
         notesStore.notesByFolder[folderKey]?[noteTitle]?.notes ?? []
     }
 
@@ -60,6 +61,8 @@ struct NoteDetailView: View {
                             .focused($inputFocused)
                             .submitLabel(.send)
                             .onSubmit { sendMessage() }
+                            .accessibilityLabel("New note input field")
+                            .accessibilityFocused($a11yFieldFocused)
 
                         Button(action: sendMessage) {
                             Image(systemName: "arrow.up.circle.fill")
@@ -79,8 +82,17 @@ struct NoteDetailView: View {
                 }
             }
         }
-        .onAppear { notesStore.fetchUserNotes() }
-        .task(id: noteTitle) { if editingId == nil { inputFocused = true } }
+        .onAppear {
+            notesStore.fetchUserNotes()
+            inputFocused = true
+            let announcement = "Now viewing notebook \"\(noteTitle)\" in folder \"\(folderKey)\"."
+            UIAccessibility.post(notification: .announcement, argument: announcement)
+        }
+        .task {
+            try? await Task.sleep(nanoseconds: 1_800_000_000)
+            a11yFieldFocused = true
+            inputFocused = true
+        }
         .fullScreenCover(isPresented: $showingRecorder,
                          onDismiss: handleVoiceNoteDismiss) {
             RecordingView(isPresented: $showingRecorder)
@@ -125,14 +137,18 @@ struct NoteDetailView: View {
                 .background(Color(UIColor.systemBackground))
                 .cornerRadius(16)
                 .focused($editingFocused)
+                .submitLabel(.done)
+                .onSubmit { saveEdit() }
+                .accessibilityLabel("Editing message field")
+                .accessibilityValue(editingText)
+                .accessibilityFocused($a11yEditingFieldFocused)
                 .onAppear {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                         UIAccessibility.post(notification: .layoutChanged, argument: nil)
+                        a11yEditingFieldFocused = true
                         editingFocused = true
                     }
                 }
-                .accessibilityLabel("Editing message field")
-                .accessibilityValue(editingText)
 
             Button(action: saveEdit) {
                 Image(systemName: "checkmark.circle.fill")
@@ -174,6 +190,9 @@ struct NoteDetailView: View {
                 UIAccessibility.post(notification: .announcement, argument: "Editing message")
                 editingId = msg.id
                 editingText = msg.text
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    editingFocused = true
+                }
             }) {
                 Image(systemName: "pencil.circle.fill")
                     .font(.system(size: 20))
@@ -187,6 +206,9 @@ struct NoteDetailView: View {
                 UIAccessibility.post(notification: .announcement, argument: "Editing message")
                 editingId = msg.id
                 editingText = msg.text
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    editingFocused = true
+                }
             } label: {
                 Label("Edit", systemImage: "pencil")
             }
@@ -259,3 +281,5 @@ struct NoteDetailView_Previews: PreviewProvider {
     }
 }
 #endif
+
+

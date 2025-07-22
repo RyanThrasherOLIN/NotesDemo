@@ -11,7 +11,10 @@ struct SettingsView: View {
     @EnvironmentObject private var noteStore: NoteStore
 
     // MARK: - Persistent Settings
-    @AppStorage("apiURL")       private var apiURL: String       = "http://10.77.0.11:5000"
+    @AppStorage("apiURL")       private var apiURL: String       = "http://64.181.230.227:5000"
+    init() {
+        UserDefaults.standard.set("http://64.181.230.227:5000/", forKey: "apiURL")
+    }
     @AppStorage("darkMode")     private var darkMode: Bool       = false
     @AppStorage("notifications")private var notifications: Bool   = true
     @AppStorage("username")     private var username: String     = ""    // ← persisted username
@@ -32,14 +35,19 @@ struct SettingsView: View {
                         .accessibilityHint("Enter your display name")
                 }
 
-                // MARK: Server Configuration
+                // MARK: Server Configuration (Read-Only for App Store submission)
                 Section("Server") {
-                    TextField("Server URL", text: $apiURL)
-                        .keyboardType(.URL)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                        .accessibilityLabel("Server URL")
-                        .accessibilityHint("Enter the API server address")
+                    HStack {
+                        Text("Server URL")
+                        Spacer()
+                        Text(apiURL)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.trailing)
+                            .textSelection(.enabled) // Allow copy but no edit
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Server URL")
+                    .accessibilityValue(apiURL)
                 }
 
                 // MARK: Appearance section
@@ -172,3 +180,4 @@ private struct RecordingRowView: View {
         }
     }
 }
+

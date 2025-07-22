@@ -1,5 +1,3 @@
-// SearchOverlay.swift
-
 import SwiftUI
 import UIKit
 
@@ -122,9 +120,10 @@ struct SearchOverlay: View {
                     )
                     .accessibilityLabel("Search result")
                     .accessibilityValue(resp.answer)
+                    .accessibilityHint("Click on this note to navigate to the notebook")
                     .accessibilityFocused($isResultFocused)
                     .onTapGesture {
-                        // Highlight the tapped note
+                        // Highlight and navigate
                         noteStore.highlightedNoteID = resp.id
                         nav.pushView(.noteDetail(
                             folder: resp.folder,
@@ -161,26 +160,19 @@ struct SearchOverlay: View {
 
                 HStack(spacing: 20) {
                     Button("New Question") {
-                        query = ""
-                        answers = []
-                        currentIndex = 0
-                        isLoading = false
-                        isSearchFieldFocused = true
+                        query = ""; answers = []; currentIndex = 0; isLoading = false; isSearchFieldFocused = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                            UIAccessibility.post(notification: .layoutChanged,
-                                                 argument: nil)
+                            UIAccessibility.post(notification: .layoutChanged, argument: nil)
                         }
                     }
                     .buttonStyle(.borderedProminent)
                     .font(.headline)
                     .accessibilityLabel("Type a new question")
 
-                    Button("Close") {
-                        isPresented = false
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .font(.headline)
-                    .accessibilityLabel("Close search overlay")
+                    Button("Close") { isPresented = false }
+                        .buttonStyle(.borderedProminent)
+                        .font(.headline)
+                        .accessibilityLabel("Close search overlay")
                 }
             }
             .padding()
@@ -195,11 +187,8 @@ struct SearchOverlay: View {
     private func performSearch() async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        isLoading = true
-        feedbackGiven = false
-        selectedFeedback = nil
+        isLoading = true; feedbackGiven = false; selectedFeedback = nil
         defer { isLoading = false }
-
         do {
             answers = try await noteStore.fetchTopNotes(question: trimmed, k: kResults)
             currentIndex = 0
@@ -215,9 +204,7 @@ struct SearchOverlay: View {
 
     private func refreshNextAnswer() {
         guard currentIndex + 1 < answers.count else { return }
-        currentIndex += 1
-        feedbackGiven = false
-        selectedFeedback = nil
+        currentIndex += 1; feedbackGiven = false; selectedFeedback = nil
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             isResultFocused = true
             UIAccessibility.post(notification: .layoutChanged, argument: nil)
@@ -230,32 +217,27 @@ struct SearchOverlay: View {
                                 rating: Int,
                                 color: Color) -> some View {
         Button {
-            selectedFeedback = rating
-            feedbackGiven = true
+            selectedFeedback = rating; feedbackGiven = true
             if let resp = currentAnswer {
                 noteStore.submitFeedback(question: query, answer: resp.answer, isPair: rating == 1)
             }
         } label: {
-            HStack {
-                Image(systemName: selectedFeedback == rating ? filledIcon : icon)
-                Text(label)
-            }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 12)
-            .font(.headline)
+            HStack { Image(systemName: selectedFeedback == rating ? filledIcon : icon); Text(label) }
+                .padding(.vertical, 6)
+                .padding(.horizontal, 12)
+                .font(.headline)
         }
         .buttonStyle(.borderedProminent)
         .tint(color)
         .disabled(feedbackGiven)
-        .opacity(feedbackGiven ? 0.5 : 1.0)
+        .opacity(feedbackGiven ? 0.5 : 1)
     }
 
     private func handleVoiceQuery() {
         guard let rec = recordingStore.recordings.first else { return }
         Task {
             if let text = await recordingStore.speechToText(rec) {
-                query = text
-                isSearchFieldFocused = true
+                query = text; isSearchFieldFocused = true
             }
         }
     }

@@ -92,7 +92,7 @@ final class NoteStore: ObservableObject {
     }
 
     private var baseURL: URL {
-        let defaultURL = "http://165.1.68.217:5000"
+        let defaultURL = "http://64.181.230.227:5000"
         let urlString = UserDefaults.standard.string(forKey: "apiURL") ?? defaultURL
         guard let url = URL(string: urlString) else {
             fatalError("Invalid `apiURL` in UserDefaults: \(urlString)")

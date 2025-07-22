@@ -1,9 +1,10 @@
 import SwiftUI
 import AVFoundation
 import SwiftLAME
+import AudioToolbox
 
 /// Overlay for audio recording that only starts when the user taps.
-/// Blinks a red dot while recording and repeats the VO hint on start.
+/// Blinks a red dot while recording and plays system beeps on start and stop.
 struct RecordingView: View {
     // MARK: - Presentation Binding
     @Binding var isPresented: Bool
@@ -33,7 +34,6 @@ struct RecordingView: View {
             VStack(spacing: 30) {
                 Spacer()
 
-                // Instruction + blinking dot
                 HStack(spacing: 8) {
                     if isRecording {
                         Circle()
@@ -57,8 +57,13 @@ struct RecordingView: View {
                     .accessibilityAddTraits(.isStaticText)
                 }
 
-                // Start/Stop button
-                Button(action: toggleRecording) {
+                Button(action: {
+                    if isRecording {
+                        finishRecording()
+                    } else {
+                        startRecording()
+                    }
+                }) {
                     RecordButton(isRecording: isRecording)
                 }
                 .accessibilityLabel(isRecording ? "Stop recording" : "Start recording")
@@ -69,41 +74,28 @@ struct RecordingView: View {
             .padding()
         }
         .onAppear {
-            // Let VO read initial prompt
-            UIAccessibility.post(
-                notification: .announcement,
-                argument: "Recording screen. Tap the button below to start recording. Tap Again to stop recording."
-            )
-        }
-        .onChange(of: isRecording) { nowRecording in
-            if nowRecording {
-                // show the blinking dot
-                showIndicator = true
-                // re-announce with stop hint
-                UIAccessibility.post(
-                    notification: .announcement,
-                    argument: "Recording… Tap the button below to stop recording."
-                )
-            } else {
-                showIndicator = false
-            }
+            UIAccessibility.post(notification: .announcement,
+                                    argument: "Recording screen. Tap the button below to start recording.")
         }
         .onDisappear {
             cleanupMeters()
         }
     }
 
-    private func toggleRecording() {
-        isRecording ? finishRecording() : beginRecording()
-    }
-
-    private func beginRecording() {
+    private func startRecording() {
+        // play start beep
+        AudioServicesPlaySystemSound(1113)
         isRecording = true
+        showIndicator = true
         silenceDuration = 0
 
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.record, mode: .default)
-        try? session.setActive(true)
+        do {
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
+            try session.setActive(true)
+        } catch {
+            print("Audio session setup failed: \(error)")
+        }
 
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("rec_\(UUID()).m4a")
@@ -115,9 +107,16 @@ struct RecordingView: View {
             AVNumberOfChannelsKey: 1,
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
         ]
-        recorder = try? AVAudioRecorder(url: fileURL, settings: settings)
-        recorder?.isMeteringEnabled = true
-        recorder?.record()
+        do {
+            recorder = try AVAudioRecorder(url: fileURL, settings: settings)
+            recorder?.isMeteringEnabled = true
+            recorder?.record()
+        } catch {
+            print("Recorder init failed: \(error)")
+        }
+
+        UIAccessibility.post(notification: .announcement,
+                                argument: "Recording… Tap the button below to stop recording.")
 
         meterTimer = Timer.scheduledTimer(withTimeInterval: meterInterval, repeats: true) { _ in
             guard let r = recorder else { return }
@@ -135,22 +134,31 @@ struct RecordingView: View {
 
     private func finishRecording() {
         guard isRecording else { return }
+        // stop meter
         cleanupMeters()
         recorder?.stop()
-        restoreAudioSession()
-        isRecording = false
 
-        UIAccessibility.post(
-            notification: .announcement,
-            argument: "Recording stopped."
-        )
+        // play stop beep
+        AudioServicesPlaySystemSound(1114)
+
+        restoreAudioSession()
+
+        isRecording = false
+        showIndicator = false
+
+        UIAccessibility.post(notification: .announcement,
+                                argument: "Recording stopped.")
 
         Task { _ = await convertAndSave() }
     }
 
     private func restoreAudioSession() {
         let session = AVAudioSession.sharedInstance()
-        try? session.setActive(false, options: .notifyOthersOnDeactivation)
+        do {
+            try session.setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            print("Audio session restore failed: \(error)")
+        }
     }
 
     private func cleanupMeters() {
@@ -183,14 +191,14 @@ struct RecordingView: View {
             }
             return rec
         } catch {
-            print("MP3 encode failed:", error)
+            print("MP3 encode failed: \(error)")
             await MainActor.run { isPresented = false }
             return nil
         }
     }
 }
 
-// Blur background
+// Blur background visual
 private struct VisualEffectView: UIViewRepresentable {
     let style: UIBlurEffect.Style
     func makeUIView(context: Context) -> UIVisualEffectView {
@@ -199,7 +207,7 @@ private struct VisualEffectView: UIViewRepresentable {
     func updateUIView(_ uiView: UIVisualEffectView, context: Context) {}
 }
 
-// Record button
+// Record button view
 private struct RecordButton: View {
     let isRecording: Bool
     var body: some View {
