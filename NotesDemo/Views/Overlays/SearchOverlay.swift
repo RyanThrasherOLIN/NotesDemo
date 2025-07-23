@@ -1,3 +1,5 @@
+// SearchOverlay.swift
+
 import SwiftUI
 import UIKit
 
@@ -81,12 +83,21 @@ struct SearchOverlay: View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.secondary)
+
             TextField("Ask your question…", text: $query)
                 .focused($isSearchFieldFocused)
                 .submitLabel(.go)
                 .onSubmit { Task { await performSearch() } }
                 .accessibilityLabel("Search field")
                 .accessibilityHint("Type your question and press Go")
+
+            Button(action: { Task { await performSearch() } }) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.title2)
+            }
+            .disabled(query.trimmingCharacters(in: .whitespaces).isEmpty)
+            .accessibilityLabel("Submit search")
+
             Button(action: { showingRecorder = true }) {
                 Image(systemName: "mic.circle.fill")
                     .font(.title2)
@@ -123,7 +134,6 @@ struct SearchOverlay: View {
                     .accessibilityHint("Click on this note to navigate to the notebook")
                     .accessibilityFocused($isResultFocused)
                     .onTapGesture {
-                        // Highlight and navigate
                         noteStore.highlightedNoteID = resp.id
                         nav.pushView(.noteDetail(
                             folder: resp.folder,

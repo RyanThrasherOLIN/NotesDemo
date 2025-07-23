@@ -1,3 +1,5 @@
+// AddNoteOverlay.swift
+
 import SwiftUI
 import UIKit  // for UIAccessibility
 
@@ -33,7 +35,7 @@ struct AddNoteOverlay: View {
                     }
                     .accessibilityLabel("Back")
                     Spacer()
-                    Text("New Note")
+                    Text("Add Notebook")
                         .font(.headline)
                         .accessibilityAddTraits(.isHeader)
                     Spacer()
@@ -45,7 +47,7 @@ struct AddNoteOverlay: View {
                 }
                 .padding(.horizontal)
 
-                // Input with mic
+                // Input with send + mic
                 HStack(spacing: 12) {
                     TextField("Enter Notebook Title", text: $draft)
                         .padding(12)
@@ -56,12 +58,20 @@ struct AddNoteOverlay: View {
                         .focused($textFieldFocused)
                         .submitLabel(.done)
                         .onSubmit { commitAndDismiss() }
+
+                    Button(action: commitAndDismiss) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title2)
+                    }
+                    .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .accessibilityLabel("Save notebook")
+
                     Button(action: { showingRecorder = true }) {
                         Image(systemName: "mic.circle.fill")
                             .font(.title2)
                     }
                     .accessibilityLabel("Record voice notebook title")
-                    .accessibilityHint("Record and transcribe a new note")
+                    .accessibilityHint("Record and transcribe a new notebook title")
                 }
                 .padding(.horizontal)
             }
@@ -78,7 +88,6 @@ struct AddNoteOverlay: View {
                     UIAccessibility.post(notification: .layoutChanged, argument: nil)
                 }
             }
-            // Voice recorder cover
             .fullScreenCover(isPresented: $showingRecorder, onDismiss: handleVoiceNoteDismiss) {
                 RecordingView(isPresented: $showingRecorder)
                     .environmentObject(recordingStore)
