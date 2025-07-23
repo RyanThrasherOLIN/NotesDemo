@@ -1,5 +1,5 @@
 //
-// SettingsView.swift
+//  SettingsView.swift
 //
 
 import SwiftUI
@@ -11,16 +11,13 @@ struct SettingsView: View {
     @EnvironmentObject private var noteStore: NoteStore
 
     // MARK: - Persistent Settings
-    @AppStorage("apiURL")       private var apiURL: String       = "http://64.181.230.227:5000"
-    init() {
-        UserDefaults.standard.set("http://64.181.230.227:5000/", forKey: "apiURL")
-    }
-    @AppStorage("darkMode")     private var darkMode: Bool       = false
-    @AppStorage("notifications")private var notifications: Bool   = true
-    @AppStorage("username")     private var username: String     = ""    // ← persisted username
+    @AppStorage("apiURL") private var apiURL: String = "http://64.181.230.227:5000"
+    @AppStorage("darkMode") private var darkMode: Bool = false
+    @AppStorage("notifications") private var notifications: Bool = true
+    @AppStorage("username") private var username: String = ""    // ← persisted username
 
     // MARK: - View State
-    @State private var showingRecorder             = false
+    @State private var showingRecorder = false
     @State private var showingDeleteAllConfirmation = false
 
     var body: some View {
@@ -35,19 +32,15 @@ struct SettingsView: View {
                         .accessibilityHint("Enter your display name")
                 }
 
-                // MARK: Server Configuration (Read-Only for App Store submission)
+                // MARK: Server Configuration
                 Section("Server") {
-                    HStack {
-                        Text("Server URL")
-                        Spacer()
-                        Text(apiURL)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.trailing)
-                            .textSelection(.enabled) // Allow copy but no edit
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Server URL")
-                    .accessibilityValue(apiURL)
+                    TextField("Server URL", text: $apiURL)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .keyboardType(.URL)
+                        .textContentType(.URL)
+                        .accessibilityLabel("Server URL")
+                        .accessibilityHint("Edit the backend server endpoint URL")
                 }
 
                 // MARK: Appearance section
@@ -180,4 +173,3 @@ private struct RecordingRowView: View {
         }
     }
 }
-
