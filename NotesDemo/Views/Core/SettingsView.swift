@@ -10,7 +10,7 @@ struct SettingsView: View {
     @EnvironmentObject private var noteStore: NoteStore
 
     // MARK: - Persistent Settings
-    @AppStorage("apiURL") private var apiURL: String = "http://64.181.230.227:5000"
+    @AppStorage("apiURL") private var apiURL: String = "https://happily-complete-stinkbug.ngrok-free.app/"
     @AppStorage("darkMode") private var darkMode: Bool = false
     @AppStorage("username") private var username: String = ""
 
