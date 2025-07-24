@@ -1,6 +1,5 @@
-//
-//  SettingsView.swift
-//
+// SettingsView.swift
+// NotesDemo
 
 import SwiftUI
 import AVFoundation
@@ -13,8 +12,11 @@ struct SettingsView: View {
     // MARK: - Persistent Settings
     @AppStorage("apiURL") private var apiURL: String = "http://64.181.230.227:5000"
     @AppStorage("darkMode") private var darkMode: Bool = false
-    @AppStorage("notifications") private var notifications: Bool = true
-    @AppStorage("username") private var username: String = ""    // ← persisted username
+    @AppStorage("username") private var username: String = ""
+
+    // MARK: - Color Mode Setting
+    @AppStorage("colorBlindMode") private var rawColorBlindMode: String = ColorBlindMode.normal.rawValue
+    private var colorMode: ColorBlindMode { ColorBlindMode(rawValue: rawColorBlindMode) ?? .normal }
 
     // MARK: - View State
     @State private var showingRecorder = false
@@ -43,14 +45,53 @@ struct SettingsView: View {
                         .accessibilityHint("Edit the backend server endpoint URL")
                 }
 
-                // MARK: Appearance section
+                // MARK: Appearance Section
                 Section("Appearance") {
                     Toggle("Dark Mode", isOn: $darkMode)
                 }
 
-                // MARK: Alerts section
-                Section("Alerts") {
-                    Toggle("Enable Notifications", isOn: $notifications)
+                // MARK: Color Vision Section
+                Section("Color Mode") {
+                    Picker("Palette", selection: $rawColorBlindMode) {
+                        ForEach(ColorBlindMode.allCases, id: \ .rawValue) { mode in
+                            Text(mode.rawValue.capitalized.replacingOccurrences(of: "Highcontrast", with: "High Contrast"))
+                                .tag(mode.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityLabel("Color mode selection")
+                    .accessibilityHint("Select a color or contrast mode for the app")
+
+                    // Palette Preview
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Palette Preview")
+                            .font(.subheadline).bold()
+                        HStack {
+                            Text("Primary")
+                                .frame(width: 80, alignment: .leading)
+                            Rectangle()
+                                .fill(ColorPalette.current.primary)
+                                .frame(width: 30, height: 30)
+                                .cornerRadius(4)
+                        }
+                        HStack {
+                            Text("Secondary")
+                                .frame(width: 80, alignment: .leading)
+                            Rectangle()
+                                .fill(ColorPalette.current.secondary)
+                                .frame(width: 30, height: 30)
+                                .cornerRadius(4)
+                        }
+                        HStack {
+                            Text("Accent")
+                                .frame(width: 80, alignment: .leading)
+                            Rectangle()
+                                .fill(ColorPalette.current.accent)
+                                .frame(width: 30, height: 30)
+                                .cornerRadius(4)
+                        }
+                    }
+                    .padding(.top, 8)
                 }
 
                 // MARK: Back Door section
@@ -60,32 +101,26 @@ struct SettingsView: View {
                     }
                 }
 
-                // MARK: Recordings section
-                Section("Recordings") {
-                    NavigationLink("Your Recordings (\(recordingStore.recordings.count))") {
-                        RecordingListView()
-                            .environmentObject(recordingStore)
-                    }
-                }
-
-                // MARK: Delete Notes section
+                // MARK: Delete Notes Section
                 Section("Delete Notes") {
                     Button("Delete All Notes") {
                         showingDeleteAllConfirmation = true
                     }
                     .foregroundColor(.red)
-                    .alert("Delete All Notes",
-                           isPresented: $showingDeleteAllConfirmation) {
+                    .alert(
+                        "Delete All Notes",
+                        isPresented: $showingDeleteAllConfirmation
+                    ) {
                         Button("Delete", role: .destructive) {
                             noteStore.deleteAllNotes()
                         }
-                        Button("Cancel", role: .cancel) { }
+                        Button("Cancel", role: .cancel) {}
                     } message: {
                         Text("Are you sure you want to delete all notes? This cannot be undone.")
                     }
                 }
 
-                // MARK: Actions
+                // MARK: Actions Section
                 Section {
                     Button("Record New Audio") {
                         showingRecorder = true
@@ -115,61 +150,5 @@ struct SettingsView_Previews: PreviewProvider {
         SettingsView()
             .environmentObject(RecordingStore())
             .environmentObject(NoteStore())
-    }
-}
-
-// MARK: — Recording List & Row —
-
-struct RecordingListView: View {
-    @EnvironmentObject var recordingStore: RecordingStore
-
-    var body: some View {
-        List(recordingStore.recordings) { rec in
-            RecordingRowView(recording: rec)
-        }
-        .navigationTitle("Recordings")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-private struct RecordingRowView: View {
-    let recording: Recording
-    @State private var player: AVAudioPlayer?
-    @State private var isPlaying = false
-
-    var body: some View {
-        HStack {
-            Button(action: togglePlay) {
-                Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
-                    .font(.title2)
-            }
-            VStack(alignment: .leading) {
-                Text(recording.url.lastPathComponent)
-                Text(recording.createdAt, style: .time)
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
-        }
-        .padding(.vertical, 4)
-        .onDisappear {
-            player?.stop()
-            isPlaying = false
-        }
-    }
-
-    private func togglePlay() {
-        if isPlaying {
-            player?.stop()
-            isPlaying = false
-        } else {
-            do {
-                player = try AVAudioPlayer(contentsOf: recording.url)
-                player?.play()
-                isPlaying = true
-            } catch {
-                print("Playback error:", error)
-            }
-        }
     }
 }

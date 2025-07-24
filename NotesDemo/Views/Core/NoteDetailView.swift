@@ -1,3 +1,6 @@
+// NoteDetailView.swift
+// NotesDemo
+
 import SwiftUI
 import UIKit   // for UIAccessibility
 
@@ -27,7 +30,7 @@ struct NoteDetailView: View {
     }
 
     /// Current list of messages in this notebook
-        private var messages: [Note] {
+    private var messages: [Note] {
         notesStore.notesByFolder[folderKey]?[noteTitle]?.notes ?? []
     }
 
@@ -38,12 +41,15 @@ struct NoteDetailView: View {
                     VStack(spacing: 8) {
                         if messages.isEmpty {
                             Text("No notes yet.")
-                                .foregroundColor(.secondary)
+                                .foregroundColor(ColorPalette.current.secondary)
                                 .padding(.top, 20)
                         } else {
                             ForEach(messages) { msg in
-                                messageRow(for: msg)
-                                    .id(msg.id)
+                                HStack {
+                                    Spacer()
+                                    messageRow(msg)
+                                }
+                                .id(msg.id)
                             }
                         }
                     }
@@ -67,6 +73,7 @@ struct NoteDetailView: View {
                         Button(action: sendMessage) {
                             Image(systemName: "arrow.up.circle.fill")
                                 .font(.system(size: 28))
+                                .foregroundColor(ColorPalette.current.accent)
                         }
                         .accessibilityLabel("Send note")
                         .disabled(newMessage.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -74,10 +81,12 @@ struct NoteDetailView: View {
                         Button(action: { showingRecorder = true }) {
                             Image(systemName: "mic.circle.fill")
                                 .font(.system(size: 28))
+                                .foregroundColor(ColorPalette.current.accent)
                         }
+                        .accessibilityLabel("Record voice note")
                     }
                     .padding()
-                    .background(Color(UIColor.systemBackground)
+                    .background(ColorPalette.current.background
                                     .ignoresSafeArea(edges: .bottom))
                 }
             }
@@ -103,10 +112,13 @@ struct NoteDetailView: View {
             ToolbarItem(placement: .principal) {
                 Text(noteTitle)
                     .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(ColorPalette.current.primary)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
     }
+
+    // MARK: - Helpers
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         DispatchQueue.main.async {
@@ -117,113 +129,97 @@ struct NoteDetailView: View {
     }
 
     @ViewBuilder
-    private func messageRow(for msg: Note) -> some View {
-        Group {
-            if editingId == msg.id {
-                HStack { Spacer(); editRow(for: msg) }
-                    .accessibilityElement(children: .contain)
-            } else {
-                HStack { Spacer(); displayRow(for: msg) }
-                    .accessibilityElement(children: .contain)
-            }
-        }
-        .accessibilityHidden(editingId != nil && editingId != msg.id)
-    }
-
-    private func editRow(for msg: Note) -> some View {
-        HStack(spacing: 8) {
-            TextField("", text: $editingText)
-                .padding(12)
-                .background(Color(UIColor.systemBackground))
-                .cornerRadius(16)
-                .focused($editingFocused)
-                .submitLabel(.done)
-                .onSubmit { saveEdit() }
-                .accessibilityLabel("Editing message field")
-                .accessibilityValue(editingText)
-                .accessibilityFocused($a11yEditingFieldFocused)
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        UIAccessibility.post(notification: .layoutChanged, argument: nil)
-                        a11yEditingFieldFocused = true
-                        editingFocused = true
-                    }
-                }
-
-            Button(action: saveEdit) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 22))
-            }
-            .accessibilityLabel("Save edits")
-            .accessibilityHint("Double tap to save changes")
-
-            Button(role: .destructive) { deleteMessage(id: msg.id) } label: {
-                Image(systemName: "trash.circle.fill")
-                    .font(.system(size: 22))
-            }
-            .accessibilityLabel("Delete message")
-            .accessibilityHint("Double tap to remove this message")
-        }
-        .padding(.trailing, 16)
-    }
-
-    @ViewBuilder private func displayRow(for msg: Note) -> some View {
+    private func messageRow(_ msg: Note) -> some View {
+        let palette = ColorPalette.current
+        let raw = UserDefaults.standard.string(forKey: "colorBlindMode") ?? ColorBlindMode.normal.rawValue
+        let mode = ColorBlindMode(rawValue: raw) ?? .normal
         let isHighlighted = msg.id == notesStore.highlightedNoteID
+        let bubbleColor: Color = mode == .normal
+            ? (isHighlighted ? palette.accent : Color.blue)
+            : (isHighlighted ? palette.accent : palette.secondary)
 
-        HStack(spacing: 8) {
-            Text(msg.text)
-                .padding(12)
-                .background(isHighlighted ? Color.yellow : Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(16)
-                .scaleEffect(isHighlighted ? 1.05 : 1.0)
-                .animation(.easeInOut(duration: 0.3), value: notesStore.highlightedNoteID)
-                .onAppear {
-                    if isHighlighted {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            notesStore.highlightedNoteID = nil
+        if editingId == msg.id {
+            HStack(spacing: 8) {
+                TextField("", text: $editingText)
+                    .padding(12)
+                    .background(palette.background)
+                    .cornerRadius(16)
+                    .focused($editingFocused)
+                    .submitLabel(.done)
+                    .onSubmit { saveEdit() }
+                    .accessibilityLabel("Editing message field")
+                    .accessibilityValue(editingText)
+                    .accessibilityFocused($a11yEditingFieldFocused)
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            UIAccessibility.post(notification: .layoutChanged, argument: nil)
+                            a11yEditingFieldFocused = true
+                            editingFocused = true
                         }
                     }
-                }
 
-            Button(action: {
-                UIAccessibility.post(notification: .announcement, argument: "Editing message")
-                editingId = msg.id
-                editingText = msg.text
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    editingFocused = true
+                Button(action: saveEdit) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundColor(palette.accent)
                 }
-            }) {
-                Image(systemName: "pencil.circle.fill")
-                    .font(.system(size: 20))
-            }
-            .accessibilityLabel("Edit message")
-            .accessibilityHint("Double tap to start editing")
-        }
-        .padding(.trailing, 16)
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button {
-                UIAccessibility.post(notification: .announcement, argument: "Editing message")
-                editingId = msg.id
-                editingText = msg.text
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    editingFocused = true
-                }
-            } label: {
-                Label("Edit", systemImage: "pencil")
-            }
-            .tint(.blue)
+                .accessibilityLabel("Save edits")
+                .accessibilityHint("Double tap to save changes")
 
-            Button(role: .destructive) {
-                UIAccessibility.post(notification: .announcement, argument: "Message deleted")
-                deleteMessage(id: msg.id)
-            } label: {
-                Label("Delete", systemImage: "trash")
+                Button(role: .destructive) { deleteMessage(id: msg.id) } label: {
+                    Image(systemName: "trash.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundColor(.red)
+                }
+                .accessibilityLabel("Delete message")
+                .accessibilityHint("Double tap to remove this message")
+            }
+        } else {
+            HStack(spacing: 8) {
+                Text(msg.text)
+                    .padding(12)
+                    .background(bubbleColor)
+                    .foregroundColor(palette.background)
+                    .cornerRadius(16)
+                    .scaleEffect(isHighlighted ? 1.05 : 1.0)
+                    .animation(.easeInOut(duration: 0.3), value: notesStore.highlightedNoteID)
+                    .onAppear {
+                        if isHighlighted {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                notesStore.highlightedNoteID = nil
+                            }
+                        }
+                    }
+
+                Button(action: {
+                    UIAccessibility.post(notification: .announcement, argument: "Editing message")
+                    editingId = msg.id
+                    editingText = msg.text
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        editingFocused = true
+                    }
+                }) {
+                    Image(systemName: "pencil.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(palette.accent)
+                }
+                .accessibilityLabel("Edit message")
+                .accessibilityHint("Double tap to start editing")
+            }
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button { editingId = msg.id; editingText = msg.text; DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { editingFocused = true } } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
+                .tint(palette.accent)
+
+                Button(role: .destructive) { deleteMessage(id: msg.id) } label: {
+                    Label("Delete", systemImage: "trash")
+                }
             }
         }
     }
 
-    // MARK: Actions
+    // MARK: - Actions
 
     private func sendMessage() {
         let text = newMessage.trimmingCharacters(in: .whitespaces)
@@ -234,36 +230,29 @@ struct NoteDetailView: View {
     }
 
     private func saveEdit() {
-        guard let id = editingId else { return }
-        notesStore.syncSingleMessage(
-            id: id,
-            text: editingText,
-            folder: folderKey,
-            notebook: noteTitle
-        )
-        editingId = nil
-        editingText = ""
-        inputFocused = true
+        if let id = editingId {
+            notesStore.syncSingleMessage(id: id, text: editingText, folder: folderKey, notebook: noteTitle)
+            editingId = nil
+            editingText = ""
+            inputFocused = true
+        }
     }
 
     private func deleteMessage(id: String) {
         editingId = nil
         editingText = ""
         inputFocused = true
-        notesStore.deleteNote(
-            id: id,
-            notebook: noteTitle,
-            folder: folderKey
-        )
+        notesStore.deleteNote(id: id, notebook: noteTitle, folder: folderKey)
     }
 
     private func handleVoiceNoteDismiss() {
-        guard let rec = recordingStore.recordings.first else { return }
-        Task {
-            if let text = await recordingStore.speechToText(rec) {
-                await MainActor.run {
-                    newMessage = text
-                    inputFocused = true
+        if let rec = recordingStore.recordings.first {
+            Task {
+                if let text = await recordingStore.speechToText(rec) {
+                    await MainActor.run {
+                        newMessage = text
+                        inputFocused = true
+                    }
                 }
             }
         }
@@ -281,5 +270,3 @@ struct NoteDetailView_Previews: PreviewProvider {
     }
 }
 #endif
-
-
