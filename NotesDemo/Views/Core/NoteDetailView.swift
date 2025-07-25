@@ -1,6 +1,22 @@
 // NoteDetailView.swift
 // NotesDemo
 
+// Andrea: Change the narrative of the app to take notes by sending messages, change the notebooks to "Listeners" so from the mental perspective this becomes a different type of interaction.
+// Every thing in the UI tells the story so make sure there is a full UI story
+// Adjentic model - what does this mean?
+// Consistency in the langauge used aswell as navigation techniques
+// Or if there are different agents tie it to the notebook: look into this furthur.
+// Simplify the settings app.
+// Building a narative for the UI, this is in the language and in the navigation(Andrea + Caitrin feedback)
+// Consise to where we can get feedback very quicly as are project is in the end stage where we have to find the metaphors and stories we need to decide.
+// Multi Model, think about the model from this perspective(voice assistant, where each voice is its own notebook)
+// Have an agent shop with premade info like JAWS key commads.
+// Joke, the agents can have children, what is the context.
+
+// Astetics feedbacks, get a designer to create consistancy in the app and langauge.
+
+
+
 import SwiftUI
 import UIKit   // for UIAccessibility
 
@@ -40,6 +56,7 @@ struct NoteDetailView: View {
                 ScrollView {
                     VStack(spacing: 8) {
                         if messages.isEmpty {
+                            // say type a message
                             Text("No notes yet.")
                                 .foregroundColor(ColorPalette.current.secondary)
                                 .padding(.top, 20)

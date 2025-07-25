@@ -1,15 +1,10 @@
-// ContentView.swift
-// NotesDemo
-//
-// The main content view of the NotesDemo application, now with a first-launch tutorial popup
-// and palette-adapted colors from ColorPalette.
-
 import SwiftUI
 
 // MARK: - Global Button Tint Mapping
 private enum BottomButton { case settings, search, add }
 private func tintColor(for button: BottomButton) -> Color {
-    let rawMode = UserDefaults.standard.string(forKey: "colorBlindMode") ?? ColorBlindMode.normal.rawValue
+    let rawMode = UserDefaults.standard.string(forKey: "colorBlindMode")
+                ?? ColorBlindMode.normal.rawValue
     let mode = ColorBlindMode(rawValue: rawMode) ?? .normal
     switch mode {
     case .normal:
@@ -20,21 +15,21 @@ private func tintColor(for button: BottomButton) -> Color {
         }
     case .protanopia:
         switch button {
-        case .settings: return Color(red: 0.0, green: 0.45, blue: 0.70) // #0072B2
-        case .search:   return Color(red: 0.00, green: 0.62, blue: 0.46) // #009E73
-        case .add:      return Color(red: 0.94, green: 0.95, blue: 0.26) // #F0E442
+        case .settings: return Color(red: 0.56, green: 0.70, blue: 0.90)
+        case .search:   return Color(red: 0.00, green: 0.62, blue: 0.46)
+        case .add:      return Color(red: 0.94, green: 0.95, blue: 0.26)
         }
     case .deuteranopia:
         switch button {
-        case .settings: return Color(red: 0.00, green: 0.45, blue: 0.70) // #0072B2
-        case .search:   return Color(red: 0.84, green: 0.37, blue: 0.00) // #D55E00
-        case .add:      return Color(red: 0.80, green: 0.47, blue: 0.65) // #CC79A7
+        case .settings: return Color(red: 0.00, green: 0.45, blue: 0.70)
+        case .search:   return Color(red: 0.84, green: 0.37, blue: 0.00)
+        case .add:      return Color(red: 0.80, green: 0.47, blue: 0.65)
         }
     case .tritanopia:
         switch button {
-        case .settings: return Color(red: 0.84, green: 0.37, blue: 0.00) // #D55E00
-        case .search:   return Color(red: 0.90, green: 0.62, blue: 0.00) // #E69F00
-        case .add:      return Color(red: 0.80, green: 0.47, blue: 0.65) // #CC79A7
+        case .settings: return Color(red: 0.84, green: 0.37, blue: 0.00)
+        case .search:   return Color(red: 0.90, green: 0.62, blue: 0.00)
+        case .add:      return Color(red: 0.80, green: 0.47, blue: 0.65)
         }
     case .achromatopsia:
         switch button {
@@ -45,43 +40,50 @@ private func tintColor(for button: BottomButton) -> Color {
     }
 }
 
+// MARK: - ContentView
+
 struct ContentView: View {
-    // ─── Shared Stores ───────────────────────────────────────
+    // Shared stores
     @EnvironmentObject private var store: NoteStore
     @EnvironmentObject private var recordingStore: RecordingStore
     @EnvironmentObject private var nav: NavigationStackHandler
 
-    // ─── Folder Picker State ─────────────────────────────────
-    @State private var folders       = ["Notes", "Work", "Personal"]
+    // Folder picker
+    @State private var folders = ["Notes", "Work", "Personal"]
     @State private var currentFolder = "Notes"
 
-    // ─── Overlay Flags ───────────────────────────────────────
-    @State private var showingSearch   = false
-    @State private var showingAdd      = false
-    @State private var showingFolders  = false
+    // Overlays
+    @State private var showingSearch = false
+    @State private var showingAdd = false
+    @State private var showingFolders = false
 
-    // ─── Tutorial Popup State ───────────────────────────────
-    @AppStorage("hasSeenTutorial") private var hasSeenTutorial: Bool = false
-    @State private var showingTutorial: Bool = false
+    // Tutorial popup
+    @AppStorage("hasSeenTutorial") private var hasSeenTutorial = false
+    @State private var showingTutorial = false
+
+    // Check if in normal mode for header styling
+    private var isNormalMode: Bool {
+        let raw = UserDefaults.standard.string(forKey: "colorBlindMode")
+                  ?? ColorBlindMode.normal.rawValue
+        return ColorBlindMode(rawValue: raw) == .normal
+    }
 
     var body: some View {
         ZStack {
-            // Background from palette
             ColorPalette.current.background
                 .ignoresSafeArea()
 
-            // Main navigation
             NavigationStack(path: $nav.path) {
                 VStack(spacing: 0) {
                     headerBar
                     NoteList(currentFolder: $currentFolder)
                         .environmentObject(store)
-                    Spacer()
+                    Spacer(minLength: 0)
                     bottomButtons
                 }
                 .navigationBarHidden(true)
-                .navigationDestination(for: NavigationDestination.self) { destination in
-                    switch destination {
+                .navigationDestination(for: NavigationDestination.self) { dest in
+                    switch dest {
                     case .settings:
                         SettingsView()
                             .environmentObject(store)
@@ -96,7 +98,6 @@ struct ContentView: View {
             }
             .accessibilityHidden(showingSearch || showingTutorial)
 
-            // Overlays
             if showingSearch {
                 SearchOverlay(isPresented: $showingSearch)
                     .environmentObject(store)
@@ -118,36 +119,38 @@ struct ContentView: View {
                     .environmentObject(store)
             }
 
-            // Tutorial Overlay
             if showingTutorial {
-                Color.black.opacity(0.4)
-                    .ignoresSafeArea()
-                VStack(spacing: 20) {
-                    Text("Welcome to NotesDemo!")
-                        .font(.title2).bold()
-                        .foregroundColor(ColorPalette.current.primary)
-                    Text("• Tap + to add a new notebook\n• Swipe to delete notebooks\n• Use Search to find notes quickly")
-                        .multilineTextAlignment(.leading)
-                        .padding()
-                        .foregroundColor(ColorPalette.current.primary)
-                    Button(action: {
-                        hasSeenTutorial = true
-                        showingTutorial = false
-                    }) {
-                        Text("Got it!")
-                            .fontWeight(.semibold)
-                            .padding(.vertical, 10)
-                            .frame(maxWidth: .infinity)
+                ZStack {
+                    Color.black.opacity(0.4).ignoresSafeArea()
+                    VStack(spacing: 20) {
+                        Text("Welcome to NotesDemo!")
+                            .font(.title2).bold()
+                            .foregroundColor(ColorPalette.current.primary)
+                        Text("""
+• Tap + to add a new notebook
+• Swipe to delete notebooks
+• Use Search to find notes quickly
+""")
+                            .multilineTextAlignment(.leading)
+                            .padding()
+                            .foregroundColor(ColorPalette.current.primary)
+                        Button("Got it!") {
+                            hasSeenTutorial = true
+                            showingTutorial = false
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(ColorPalette.current.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(ColorPalette.current.accent)
-                }
-                .padding(24)
-                .background(.ultraThinMaterial)
-                .cornerRadius(12)
-                .padding(.horizontal, 40)
-                .onAppear {
-                    UIAccessibility.post(notification: .layoutChanged, argument: nil)
+                    .padding(24)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(12)
+                    .padding(.horizontal, 40)
+                    .onAppear {
+                        UIAccessibility.post(notification: .layoutChanged,
+                                               argument: nil)
+                    }
                 }
             }
         }
@@ -158,71 +161,67 @@ struct ContentView: View {
         }
     }
 
-    // MARK: – Header Bar
+    // MARK: - Header Bar
     private var headerBar: some View {
         HStack {
-            Button {
-                showingFolders = true
-            } label: {
+            Button { showingFolders = true } label: {
                 Image(systemName: "folder")
                     .font(.title2)
             }
-            .foregroundColor(ColorPalette.current.primary)
+            .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
 
             Spacer()
 
             Text(currentFolder)
                 .font(.largeTitle.bold())
-                .foregroundColor(ColorPalette.current.primary)
-                .frame(maxWidth: .infinity)
+                .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
 
-            Spacer().frame(width: 24)
+            Spacer()
+
+            Button { nav.pushView(.settings) } label: {
+                Image(systemName: "gearshape.fill")
+                    .font(.title2)
+            }
+            .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
         }
-        .padding(.horizontal)
-        .padding(.top)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
     }
 
-    // MARK: – Bottom Toolbar
+    // MARK: - Bottom Buttons
     private var bottomButtons: some View {
         HStack(spacing: 16) {
-            Button { nav.pushView(.settings) } label: {
-                VStack(spacing: 6) {
-                    Image(systemName: "person.fill").font(.title)
-                    Text("User Settings").font(.subheadline)
-                }
-                .frame(maxWidth: .infinity, minHeight: 70)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(tintColor(for: .settings))
-
-            Button { showingSearch = true } label: {
-                VStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass").font(.title)
-                    Text("Search Notes").font(.subheadline)
-                }
-                .frame(maxWidth: .infinity, minHeight: 70)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(tintColor(for: .search))
-
             Button { showingAdd = true } label: {
-                VStack(spacing: 6) {
-                    Image(systemName: "plus.circle.fill").font(.title)
-                    Text("Add Notebook").font(.subheadline)
-                }
-                .frame(maxWidth: .infinity, minHeight: 70)
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 50))
+                    .frame(maxWidth: .infinity, minHeight: 80)
             }
             .buttonStyle(.borderedProminent)
             .tint(tintColor(for: .add))
+
+            Button { showingSearch = true } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 50))
+                    .frame(maxWidth: .infinity, minHeight: 80)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(tintColor(for: .search))
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
     }
 }
 
+// MARK: - NoteList
 struct NoteList: View {
     @Binding var currentFolder: String
     @EnvironmentObject private var store: NoteStore
+
+    private var isNormalMode: Bool {
+        let raw = UserDefaults.standard.string(forKey: "colorBlindMode")
+                  ?? ColorBlindMode.normal.rawValue
+        return ColorBlindMode(rawValue: raw) == .normal
+    }
 
     init(currentFolder: Binding<String>) {
         self._currentFolder = currentFolder
@@ -230,21 +229,18 @@ struct NoteList: View {
 
     var body: some View {
         List {
-            if let folderNotes = store.notesByFolder[currentFolder] {
-                let sorted = folderNotes.sorted { $0.key < $1.key }
-                ForEach(sorted, id: \.key) { title, _ in
-                    NavigationLink(
-                        value: NavigationDestination.noteDetail(
-                            folder: currentFolder,
-                            noteTitle: title
-                        )
-                    ) {
+            if let folderMap = store.notesByFolder[currentFolder] {
+                ForEach(folderMap.keys.sorted(), id: \.self) { title in
+                    NavigationLink(value: NavigationDestination.noteDetail(
+                        folder: currentFolder,
+                        noteTitle: title
+                    )) {
                         Text(title)
                             .font(.title2)
                             .padding(.vertical, 6)
-                            .foregroundColor(ColorPalette.current.primary)
+                            .foregroundColor(isNormalMode ? .black : ColorPalette.current.primary)
                     }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
                             store.deleteNoteBook(title: title, in: currentFolder)
                         } label: {
@@ -260,6 +256,7 @@ struct NoteList: View {
     }
 }
 
+// MARK: - Preview
 #if DEBUG
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
