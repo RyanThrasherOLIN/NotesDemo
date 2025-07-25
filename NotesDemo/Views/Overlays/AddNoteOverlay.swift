@@ -1,5 +1,3 @@
-// AddNoteOverlay.swift
-
 import SwiftUI
 import UIKit  // for UIAccessibility
 
@@ -27,18 +25,22 @@ struct AddNoteOverlay: View {
 
             // Compact card container
             VStack(spacing: 16) {
-                // Header with back and save
+                // Header with close (✕) and save
                 HStack {
                     Button(action: { isPresented = false }) {
-                        Image(systemName: "chevron.backward")
+                        Image(systemName: "xmark")
                             .font(.title2)
                     }
-                    .accessibilityLabel("Back")
+                    .accessibilityLabel("Close add notebook")
+
                     Spacer()
+
                     Text("Add Notebook")
                         .font(.headline)
                         .accessibilityAddTraits(.isHeader)
+
                     Spacer()
+
                     Button(action: commitAndDismiss) {
                         Text("Save")
                             .fontWeight(.bold)
