@@ -98,6 +98,7 @@ struct ContentView: View {
             }
             .accessibilityHidden(showingSearch || showingTutorial)
 
+            // Overlays
             if showingSearch {
                 SearchOverlay(isPresented: $showingSearch)
                     .environmentObject(store)
@@ -119,6 +120,7 @@ struct ContentView: View {
                     .environmentObject(store)
             }
 
+            // Tutorial popup
             if showingTutorial {
                 ZStack {
                     Color.black.opacity(0.4).ignoresSafeArea()
@@ -166,39 +168,32 @@ struct ContentView: View {
         HStack {
             Button { showingFolders = true } label: {
                 Image(systemName: "folder")
-                    .font(.title2)
+                    .font(.title)
             }
             .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
 
             Spacer()
 
             Text(currentFolder)
-                .font(.largeTitle.bold())
+                .font(.system(size: 36, weight: .bold))
                 .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
 
             Spacer()
 
             Button { nav.pushView(.settings) } label: {
                 Image(systemName: "gearshape.fill")
-                    .font(.title2)
+                    .font(.title)
             }
             .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
+        .padding(.top, 16)
+        .padding(.bottom, 8)
     }
 
     // MARK: - Bottom Buttons
     private var bottomButtons: some View {
         HStack(spacing: 16) {
-            Button { showingAdd = true } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 50))
-                    .frame(maxWidth: .infinity, minHeight: 80)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(tintColor(for: .add))
-
             Button { showingSearch = true } label: {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 50))
@@ -206,6 +201,14 @@ struct ContentView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(tintColor(for: .search))
+
+            Button { showingAdd = true } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 50))
+                    .frame(maxWidth: .infinity, minHeight: 80)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(tintColor(for: .add))
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 8)

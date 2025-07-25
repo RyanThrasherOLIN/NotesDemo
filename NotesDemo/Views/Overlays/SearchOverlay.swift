@@ -1,19 +1,15 @@
-// SearchOverlay.swift
-
 import SwiftUI
 import UIKit
 
+/// Simplified search overlay; focus on a clean results page with integrated controls and visual feedback.
 struct SearchOverlay: View {
-    // MARK: - Presentation
+    // MARK: - Bindings
     @Binding var isPresented: Bool
 
     // MARK: - Environment
     @EnvironmentObject private var noteStore: NoteStore
     @EnvironmentObject private var recordingStore: RecordingStore
     @EnvironmentObject private var nav: NavigationStackHandler
-
-    // MARK: - Config
-    private let kResults = 5
 
     // MARK: - State
     @State private var query: String = ""
@@ -27,6 +23,8 @@ struct SearchOverlay: View {
     @FocusState private var isSearchFieldFocused: Bool
     @AccessibilityFocusState private var isResultFocused: Bool
 
+    private let kResults = 5
+
     private var currentAnswer: AIResponse? {
         answers.indices.contains(currentIndex) ? answers[currentIndex] : nil
     }
@@ -34,6 +32,7 @@ struct SearchOverlay: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                // backdrop
                 Rectangle()
                     .fill(.ultraThinMaterial)
                     .ignoresSafeArea()
@@ -43,20 +42,19 @@ struct SearchOverlay: View {
                 VStack(spacing: 20) {
                     header
                     searchField
-                    results()
-                    Spacer()
+                    resultsView()
+                    Spacer(minLength: 0)
                 }
+                .padding(.vertical, 24)
                 .accessibilityElement(children: .contain)
                 .accessibilityAddTraits(.isModal)
                 .onAppear {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                         isSearchFieldFocused = true
-                        UIAccessibility.post(notification: .screenChanged,
-                                             argument: nil)
+                        UIAccessibility.post(notification: .screenChanged, argument: nil)
                     }
                 }
-                .fullScreenCover(isPresented: $showingRecorder,
-                                 onDismiss: handleVoiceQuery) {
+                .fullScreenCover(isPresented: $showingRecorder, onDismiss: handleVoiceQuery) {
                     RecordingView(isPresented: $showingRecorder)
                         .environmentObject(recordingStore)
                         .ignoresSafeArea()
@@ -65,6 +63,7 @@ struct SearchOverlay: View {
         }
     }
 
+    // MARK: - Header
     private var header: some View {
         HStack {
             Button(action: { isPresented = false }) {
@@ -73,21 +72,24 @@ struct SearchOverlay: View {
                     .padding(8)
             }
             .accessibilityLabel("Close search")
+
             Spacer()
         }
-        .padding(.horizontal, 30)
-        .padding(.top, UIApplication.shared.windows.first?.safeAreaInsets.top ?? 20)
+        .padding(.horizontal)
+        .padding(.top, UIApplication.shared.connectedScenes
+                        .compactMap { $0 as? UIWindowScene }
+                        .first?.windows.first?.safeAreaInsets.top ?? 20)
     }
 
+    // MARK: - Search Field (original design)
     private var searchField: some View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.secondary)
-
             TextField("Ask your question…", text: $query)
                 .focused($isSearchFieldFocused)
                 .submitLabel(.go)
-                .onSubmit { Task { await performSearch() } }
+                .onSubmit { Task { await performSearch() }}
                 .accessibilityLabel("Search field")
                 .accessibilityHint("Type your question and press Go")
 
@@ -116,84 +118,76 @@ struct SearchOverlay: View {
         .padding(.horizontal)
     }
 
+    // MARK: - Results View
     @ViewBuilder
-    private func results() -> some View {
+    private func resultsView() -> some View {
         if isLoading {
             ProgressView()
-                .accessibilityLabel("Loading results")
+                .frame(maxWidth: .infinity)
+                .padding()
         } else if let resp = currentAnswer {
-            VStack(alignment: .leading, spacing: 20) {
-                Text(resp.answer)
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(UIColor.systemGray6))
-                    )
-                    .accessibilityLabel("Search result")
-                    .accessibilityValue(resp.answer)
-                    .accessibilityHint("Click on this note to navigate to the notebook")
-                    .accessibilityFocused($isResultFocused)
-                    .onTapGesture {
-                        noteStore.highlightedNoteID = resp.id
-                        nav.pushView(.noteDetail(
-                            folder: resp.folder,
-                            noteTitle: resp.notebook
-                        ))
-                        isPresented = false
-                    }
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 32) {
+                    HStack(alignment: .top, spacing: 16) {
+                        // Tappable answer bubble
+                        Text(resp.answer)
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(UIColor.systemBackground).opacity(0.9))
+                            )
+                            .onTapGesture {
+                                noteStore.highlightedNoteID = resp.id
+                                nav.pushView(.noteDetail(folder: resp.folder, noteTitle: resp.notebook))
+                                isPresented = false
+                            }
 
-                Button(action: refreshNextAnswer) {
-                    HStack {
-                        Image(systemName: "arrow.clockwise")
-                        Text("Refresh Note")
-                    }
-                    .font(.headline)
-                }
-                .accessibilityLabel("Refresh note")
-
-                HStack(spacing: 20) {
-                    feedbackButton(
-                        icon: "hand.thumbsup",
-                        filledIcon: "hand.thumbsup.fill",
-                        label: "Good Search",
-                        rating: 1,
-                        color: .green
-                    )
-                    feedbackButton(
-                        icon: "hand.thumbsdown",
-                        filledIcon: "hand.thumbsdown.fill",
-                        label: "Bad Search",
-                        rating: 0,
-                        color: .red
-                    )
-                }
-
-                HStack(spacing: 20) {
-                    Button("New Question") {
-                        query = ""; answers = []; currentIndex = 0; isLoading = false; isSearchFieldFocused = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                            UIAccessibility.post(notification: .layoutChanged, argument: nil)
+                        // Integrated refresh button (larger hit area)
+                        Button(action: refreshNextAnswer) {
+                            Image(systemName: "arrow.clockwise.circle.fill")
+                                .font(.system(size: 34))
+                                .padding(12)
                         }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .font(.headline)
-                    .accessibilityLabel("Type a new question")
-
-                    Button("Close") { isPresented = false }
                         .buttonStyle(.borderedProminent)
-                        .font(.headline)
-                        .accessibilityLabel("Close search overlay")
+                        .tint(ColorPalette.current.accent)
+                        .controlSize(.large)
+                        .accessibilityLabel("Next answer")
+                    }
+
+                    // Enlarged feedback buttons
+                    HStack(spacing: 32) {
+                        Button(action: { giveFeedback(1) }) {
+                            Image(systemName: selectedFeedback == 1 ? "hand.thumbsup.fill" : "hand.thumbsup")
+                                .font(.system(size: 36))
+                                .padding(12)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                        .controlSize(.large)
+                        .disabled(feedbackGiven)
+                        .accessibilityLabel("Thumbs up")
+
+                        Button(action: { giveFeedback(0) }) {
+                            Image(systemName: selectedFeedback == 0 ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                                .font(.system(size: 36))
+                                .padding(12)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                        .controlSize(.large)
+                        .disabled(feedbackGiven)
+                        .accessibilityLabel("Thumbs down")
+                    }
+                    .frame(maxWidth: .infinity)
                 }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
             }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(UIColor.systemBackground).opacity(0.95))
-            )
-            .padding(.horizontal)
+            .frame(maxHeight: 400)
         }
     }
 
+    // MARK: - Actions
     private func performSearch() async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -202,10 +196,6 @@ struct SearchOverlay: View {
         do {
             answers = try await noteStore.fetchTopNotes(question: trimmed, k: kResults)
             currentIndex = 0
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                isResultFocused = true
-                UIAccessibility.post(notification: .layoutChanged, argument: nil)
-            }
         } catch {
             answers = []
             print("Search error: \(error)")
@@ -215,32 +205,14 @@ struct SearchOverlay: View {
     private func refreshNextAnswer() {
         guard currentIndex + 1 < answers.count else { return }
         currentIndex += 1; feedbackGiven = false; selectedFeedback = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            isResultFocused = true
-            UIAccessibility.post(notification: .layoutChanged, argument: nil)
-        }
     }
 
-    private func feedbackButton(icon: String,
-                                filledIcon: String,
-                                label: String,
-                                rating: Int,
-                                color: Color) -> some View {
-        Button {
-            selectedFeedback = rating; feedbackGiven = true
-            if let resp = currentAnswer {
-                noteStore.submitFeedback(question: query, answer: resp.answer, isPair: rating == 1)
-            }
-        } label: {
-            HStack { Image(systemName: selectedFeedback == rating ? filledIcon : icon); Text(label) }
-                .padding(.vertical, 6)
-                .padding(.horizontal, 12)
-                .font(.headline)
+    private func giveFeedback(_ rating: Int) {
+        selectedFeedback = rating
+        feedbackGiven = true
+        if let resp = currentAnswer {
+            noteStore.submitFeedback(question: query, answer: resp.answer, isPair: rating == 1)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(color)
-        .disabled(feedbackGiven)
-        .opacity(feedbackGiven ? 0.5 : 1)
     }
 
     private func handleVoiceQuery() {
