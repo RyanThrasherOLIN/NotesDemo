@@ -1,3 +1,5 @@
+// NoteDetailView.swift
+
 import SwiftUI
 import UIKit // for UIAccessibility
 
@@ -62,7 +64,10 @@ struct NoteDetailView: View {
 
                 Divider()
 
-                inputArea
+                // only show the bottom input when NOT editing an existing message
+                if editingId == nil {
+                    inputArea
+                }
             }
         }
         .onAppear {
@@ -94,7 +99,6 @@ struct NoteDetailView: View {
                 .foregroundColor(ColorPalette.current.primary)
 
             Spacer()
-            // invisible spacer to balance
             Spacer().frame(width: 32)
         }
         .padding(.horizontal)
@@ -154,11 +158,19 @@ struct NoteDetailView: View {
 
         if editingId == msg.id {
             HStack(spacing: 8) {
+                // EDIT MODE: pill-style text field
                 TextField("", text: $editingText)
-                    .padding(16)
-                    .background(bubbleColor)
-                    .foregroundColor(palette.background)
-                    .cornerRadius(16)
+                    .font(.title3)
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 25)
+                            .fill(Color(UIColor.systemBackground))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 25)
+                            .stroke(ColorPalette.current.accent, lineWidth: 2)
+                    )
                     .focused($editingFocused)
                     .submitLabel(.done)
                     .onSubmit(saveEdit)
@@ -177,6 +189,7 @@ struct NoteDetailView: View {
                 }
                 .accessibilityLabel("Delete message")
             }
+            .padding(.horizontal)
         } else {
             Text(msg.text)
                 .font(.title3)

@@ -1,7 +1,9 @@
+// SearchOverlay.swift
+
 import SwiftUI
 import UIKit
 
-/// Simplified search overlay; clean, centered results pop-up with tighter bubbles.
+/// Simplified search overlay; clean, centered results pop-up with lighter backdrop and true modal VoiceOver.
 struct SearchOverlay: View {
     // Bindings
     @Binding var isPresented: Bool
@@ -29,19 +31,47 @@ struct SearchOverlay: View {
 
     var body: some View {
         ZStack {
-            // Backdrop
-            Rectangle()
-                .fill(.ultraThinMaterial)
+            // Lighter, semi-opaque backdrop
+            Color.white.opacity(1)
                 .ignoresSafeArea()
                 .onTapGesture { isPresented = false }
 
-            VStack(spacing: 12) {
+            VStack(spacing: 16) {
                 header
-                searchField
+
+                // search input bubble
+                HStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(ColorPalette.current.secondary)
+                    TextField("Ask your question…", text: $query)
+                        .focused($isSearchFieldFocused)
+                        .submitLabel(.go)
+                        .onSubmit { Task { await performSearch() } }
+                        .font(.title3)
+                    Button(action: { Task { await performSearch() } }) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title2)
+                    }
+                    .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button(action: { showingRecorder = true }) {
+                        Image(systemName: "mic.circle.fill")
+                            .font(.title2)
+                    }
+                }
+                .padding(.vertical, 14)
+                .padding(.horizontal, 20)
+                .background(
+                    RoundedRectangle(cornerRadius: 25)
+                        .fill(.regularMaterial)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 25)
+                        .stroke(ColorPalette.current.accent, lineWidth: 2)
+                )
+                .padding(.horizontal, 16)
 
                 if isLoading {
                     ProgressView()
-                        .frame(maxWidth: .infinity)
                         .padding()
                 } else if let resp = currentAnswer {
                     resultCard(resp)
@@ -50,6 +80,9 @@ struct SearchOverlay: View {
                 Spacer(minLength: 0)
             }
             .padding(.vertical, 24)
+            // trap VoiceOver focus inside this overlay
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(.isModal)
             .fullScreenCover(isPresented: $showingRecorder, onDismiss: handleVoiceQuery) {
                 RecordingView(isPresented: $showingRecorder)
                     .environmentObject(recordingStore)
@@ -61,9 +94,12 @@ struct SearchOverlay: View {
                 }
             }
         }
+        // also mark the entire ZStack as modal so background doesn’t get VoiceOver focus
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
     }
 
-    // Header with close button
+    // MARK: – Header
     private var header: some View {
         HStack {
             Button { isPresented = false } label: {
@@ -74,45 +110,20 @@ struct SearchOverlay: View {
             .accessibilityLabel("Close search")
             Spacer()
         }
-        .padding(.horizontal)
+        .padding(.horizontal, 16)
         .padding(.top, UIApplication.shared.connectedScenes
                         .compactMap { $0 as? UIWindowScene }
                         .first?.windows.first?.safeAreaInsets.top ?? 20)
     }
 
-    // Search field bubble
-    private var searchField: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "magnifyingglass").foregroundColor(.secondary)
-            TextField("Ask your question…", text: $query)
-                .focused($isSearchFieldFocused)
-                .submitLabel(.go)
-                .onSubmit { Task { await performSearch() } }
-                .font(.title3)
-            Button(action: { Task { await performSearch() } }) {
-                Image(systemName: "arrow.up.circle.fill").font(.title2)
-            }
-            .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            Button(action: { showingRecorder = true }) {
-                Image(systemName: "mic.circle.fill").font(.title2)
-            }
-        }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(UIColor.systemBackground)))
-        .overlay(RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(UIColor.systemGray4), lineWidth: 1))
-        .padding(.horizontal)
-    }
-
-    // Result card bubble
+    // MARK: – Result Card Bubble
     private func resultCard(_ resp: AIResponse) -> some View {
         VStack(spacing: 16) {
             HStack(alignment: .top) {
                 Text(resp.answer)
                     .font(.body)
-                    .multilineTextAlignment(.leading)
                     .foregroundColor(.primary)
+                    .multilineTextAlignment(.leading)
                     .onTapGesture {
                         noteStore.highlightedNoteID = resp.id
                         nav.pushView(.noteDetail(folder: resp.folder, noteTitle: resp.notebook))
@@ -120,15 +131,20 @@ struct SearchOverlay: View {
                     }
                 Spacer()
                 Button(action: refreshNextAnswer) {
-                    Image(systemName: "arrow.clockwise.circle.fill").font(.title2)
+                    Image(systemName: "arrow.clockwise.circle.fill")
+                        .font(.title2)
                 }
                 .accessibilityLabel("Next answer")
             }
             .padding(16)
-            .background(RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(UIColor.systemGray6)))
-            .overlay(RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color(UIColor.systemGray4), lineWidth: 1))
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(.regularMaterial)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(ColorPalette.current.accent, lineWidth: 2)
+            )
             .frame(maxWidth: 360)
 
             HStack(spacing: 40) {
@@ -154,7 +170,10 @@ struct SearchOverlay: View {
             }
 
             Button("New Question") {
-                query = ""; answers = []; currentIndex = 0; feedbackGiven = false;
+                query = ""
+                answers = []
+                currentIndex = 0
+                feedbackGiven = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     isSearchFieldFocused = true
                 }
@@ -167,19 +186,26 @@ struct SearchOverlay: View {
             .accessibilityLabel("Ask a new question")
         }
         .padding(24)
-        .background(RoundedRectangle(cornerRadius: 24)
-                        .fill(Color(UIColor.systemBackground)))
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(.regularMaterial)
+        )
         .shadow(radius: 12)
-        .padding(.horizontal)
+        .padding(.horizontal, 16)
     }
 
-    // Actions
+    // MARK: – Actions
     private func performSearch() async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         isLoading = true; feedbackGiven = false; selectedFeedback = nil
         defer { isLoading = false }
-        do { answers = try await noteStore.fetchTopNotes(question: trimmed, k: kResults); currentIndex = 0 } catch { answers = [] }
+        do {
+            answers = try await noteStore.fetchTopNotes(question: trimmed, k: kResults)
+            currentIndex = 0
+        } catch {
+            answers = []
+        }
     }
 
     private func refreshNextAnswer() {
@@ -188,7 +214,8 @@ struct SearchOverlay: View {
     }
 
     private func giveFeedback(_ rating: Int) {
-        selectedFeedback = rating; feedbackGiven = true
+        selectedFeedback = rating
+        feedbackGiven = true
         if let resp = currentAnswer {
             noteStore.submitFeedback(question: query, answer: resp.answer, isPair: rating == 1)
         }
@@ -198,7 +225,8 @@ struct SearchOverlay: View {
         guard let rec = recordingStore.recordings.first else { return }
         Task {
             if let text = await recordingStore.speechToText(rec) {
-                query = text; isSearchFieldFocused = true
+                query = text
+                isSearchFieldFocused = true
             }
         }
     }

@@ -1,3 +1,5 @@
+// ContentView.swift
+
 import SwiftUI
 
 // MARK: - Global Button Tint Mapping
@@ -171,6 +173,7 @@ struct ContentView: View {
                     .font(.title)
             }
             .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
+            .accessibilityLabel("Folders")
 
             Spacer()
 
@@ -185,6 +188,7 @@ struct ContentView: View {
                     .font(.title)
             }
             .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
+            .accessibilityLabel("Settings")
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)
@@ -233,7 +237,7 @@ struct NoteList: View {
     var body: some View {
         List {
             if let folderMap = store.notesByFolder[currentFolder] {
-                ForEach(folderMap.keys.sorted(), id: \.self) { title in
+                ForEach(folderMap.keys.sorted(), id: \ .self) { title in
                     NavigationLink(value: NavigationDestination.noteDetail(
                         folder: currentFolder,
                         noteTitle: title

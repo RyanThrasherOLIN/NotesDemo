@@ -1,8 +1,9 @@
 // ColorPalette.swift
-// Provides accessible color palettes for normal, color-blind, and high-contrast modes
+// Provides color palettes for normal and color-blind modes
 
 import SwiftUI
 
+/// Centralizes palette definitions and provides a dynamic access based on user settings.
 struct ColorPalette {
     let primary: Color
     let secondary: Color
@@ -10,57 +11,43 @@ struct ColorPalette {
     let accent: Color
 
     // MARK: - Static Presets
-
-    /// Normal vision palette
     static let standard = ColorPalette(
         primary: .primary,
-        secondary: .gray,
+        secondary: .secondary,
         background: Color(UIColor.systemBackground),
-        accent: Color(red: 0.0, green: 0.48, blue: 1.0) // system blue
+        accent: .blue
     )
 
-    /// Protanopia-friendly palette
     static let protanopia = ColorPalette(
-        primary: Color(red: 0.0, green: 0.6, blue: 0.6),     // teal
-        secondary: Color(red: 1.0, green: 0.84, blue: 0.0),   // gold
+        primary: .green,
+        secondary: .yellow,
         background: Color(UIColor.systemBackground),
-        accent: Color(red: 0.2, green: 0.2, blue: 0.7)        // navy blue
+        accent: .orange
     )
 
-    /// Deuteranopia-friendly palette
     static let deuteranopia = ColorPalette(
-        primary: Color(red: 0.0, green: 0.65, blue: 0.9),     // cyan
-        secondary: Color(red: 1.0, green: 0.6, blue: 0.0),    // orange
+        primary: .blue,
+        secondary: .orange,
         background: Color(UIColor.systemBackground),
-        accent: Color(red: 0.3, green: 0.2, blue: 0.6)        // indigo
+        accent: .purple
     )
 
-    /// Tritanopia-friendly palette
     static let tritanopia = ColorPalette(
-        primary: Color(red: 1.0, green: 0.45, blue: 0.2),     // reddish-orange
-        secondary: Color(red: 0.0, green: 0.7, blue: 0.6),    // turquoise
+        primary: .red,
+        secondary: .green,
         background: Color(UIColor.systemBackground),
-        accent: Color(red: 0.4, green: 0.2, blue: 0.6)        // violet
+        accent: .pink
     )
 
-    /// Achromatopsia (grayscale) palette
     static let achromatopsia = ColorPalette(
-        primary: Color(white: 0.2),       // dark gray
-        secondary: Color(white: 0.6),     // light gray
+        primary: .gray,
+        secondary: .gray.opacity(0.7),
         background: Color(UIColor.systemBackground),
         accent: .black
     )
 
-    /// High-contrast palette for users with low vision
-    static let highContrast = ColorPalette(
-        primary: .black,
-        secondary: .white,
-        background: .yellow,              // high luminance contrast
-        accent: Color(red: 1.0, green: 0.0, blue: 0.0) // bright red
-    )
-
     // MARK: - Dynamic Access
-
+    /// Reads the user’s choice from UserDefaults and returns the active palette.
     static var current: ColorPalette {
         let raw = UserDefaults.standard.string(forKey: "colorBlindMode")
         let mode = ColorBlindMode(rawValue: raw ?? ColorBlindMode.normal.rawValue) ?? .normal

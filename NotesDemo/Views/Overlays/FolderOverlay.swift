@@ -1,15 +1,17 @@
+// FolderOverlay.swift
+
 import SwiftUI
 import UIKit  // for UIAccessibility
 
 /// Modal overlay for selecting and managing folders.
-/// Uses a card-style design, consistent colors/fonts, and a blurred backdrop.
+/// Uses a centered card with pill-style input, matching other overlays.
 struct FolderOverlay: View {
     // MARK: - Bindings
     @Binding var isPresented: Bool
     @Binding var selectedFolder: String
     @Binding var folders: [String]
 
-    // MARK: - Local State
+    // MARK: - State
     @State private var newFolderName: String = ""
     @FocusState private var newFolderFocused: Bool
     @State private var showingRecorder: Bool = false
@@ -17,14 +19,14 @@ struct FolderOverlay: View {
 
     var body: some View {
         ZStack {
-            // Dark semi-transparent backdrop
+            // Semi-transparent backdrop
             Color.black.opacity(0.4)
                 .ignoresSafeArea()
                 .onTapGesture { isPresented = false }
 
             // Card container
-            VStack(spacing: 20) {
-                // Header with centered title and left-aligned close button
+            VStack(spacing: 24) {
+                // Header
                 ZStack {
                     Text("Folders")
                         .font(.largeTitle.bold())
@@ -34,13 +36,15 @@ struct FolderOverlay: View {
                             Image(systemName: "xmark")
                                 .font(.title2)
                                 .foregroundColor(ColorPalette.current.secondary)
+                                .padding(8)
                         }
                         .accessibilityLabel("Close folders overlay")
                         Spacer()
                     }
+                    .padding(.horizontal, 16)
                 }
 
-                // Scrollable list of existing folders
+                // Folder list
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 12) {
                         ForEach(folders, id: \.self) { folder in
@@ -55,65 +59,82 @@ struct FolderOverlay: View {
                                     Spacer()
                                     if folder == selectedFolder {
                                         Image(systemName: "checkmark.circle.fill")
+                                            .font(.title2)
                                             .foregroundColor(ColorPalette.current.accent)
                                     }
                                 }
                                 .padding(.vertical, 12)
-                                .padding(.horizontal)
-                                .background(ColorPalette.current.background)
-                                .cornerRadius(12)
+                                .padding(.horizontal, 16)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(ColorPalette.current.background)
+                                )
                             }
                         }
                     }
+                    .padding(.horizontal, 16)    // prevent pills touching edges
                 }
                 .frame(maxHeight: 300)
 
                 Divider()
 
-                // New folder creation row with send & record buttons
-                HStack(spacing: 12) {
-                    TextField("New folder", text: $newFolderName)
-                        .padding(12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(UIColor.secondarySystemBackground))
-                        )
+                // New folder input row
+                HStack(spacing: 8) {               // gap between text field & button group
+                    TextField("New folder…", text: $newFolderName)
                         .font(.title3)
+                        .padding(.vertical, 16)
+                        .padding(.horizontal, 24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 25)
+                                .fill(Color(UIColor.systemBackground))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 25)
+                                .stroke(ColorPalette.current.accent, lineWidth: 2)
+                        )
                         .focused($newFolderFocused)
                         .submitLabel(.send)
-                        .onSubmit { addNewFolder() }
+                        .onSubmit(addNewFolder)
                         .accessibilityLabel("New folder name")
 
-                    Button(action: addNewFolder) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.title2)
-                    }
-                    .disabled(newFolderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .accessibilityLabel("Save folder")
+                    HStack(spacing: 0) {         // send & mic flush together
+                        Button(action: addNewFolder) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 34))
+                                .foregroundColor(ColorPalette.current.accent)
+                                .padding(8)
+                        }
+                        .disabled(newFolderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .accessibilityLabel("Save folder")
 
-                    Button(action: { showingRecorder = true }) {
-                        Image(systemName: "mic.circle.fill")
-                            .font(.title2)
+                        Button(action: { showingRecorder = true }) {
+                            Image(systemName: "mic.circle.fill")
+                                .font(.system(size: 34))
+                                .foregroundColor(ColorPalette.current.accent)
+                                .padding(8)
+                        }
+                        .accessibilityLabel("Record folder name")
+                        .accessibilityHint("Record and transcribe a new folder name")
                     }
-                    .accessibilityLabel("Record folder name")
-                    .accessibilityHint("Record and transcribe a new folder name")
                 }
+                .padding(.horizontal, 16)
             }
-            .padding(24)
+            .frame(maxWidth: 360)
+            .padding(.vertical, 24)
             .background(.regularMaterial)
             .cornerRadius(20)
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 16)
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isModal)
             .onAppear {
+                // announce the overlay, but do NOT auto-focus the input field
                 UIAccessibility.post(notification: .screenChanged, argument: "Folders overlay")
-                newFolderFocused = true
             }
-        }
-        .fullScreenCover(isPresented: $showingRecorder) {
-            RecordingView(isPresented: $showingRecorder)
-                .environmentObject(recordingStore)
-                .ignoresSafeArea()
+            .fullScreenCover(isPresented: $showingRecorder) {
+                RecordingView(isPresented: $showingRecorder)
+                    .environmentObject(recordingStore)
+                    .ignoresSafeArea()
+            }
         }
     }
 

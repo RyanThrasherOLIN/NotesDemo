@@ -1,96 +1,103 @@
 import SwiftUI
 import UIKit  // for UIAccessibility
 
+/// Overlay for adding a new notebook, with centered card and pill-style input.
 struct AddNoteOverlay: View {
-    // MARK: - Presentation Binding
+    // MARK: - Presentation
     @Binding var isPresented: Bool
-
-    // MARK: - Submission Handler
     var onSubmit: (String) -> Void
 
-    // MARK: - Internal State
-    @State private var draft = ""
-    @FocusState private var textFieldFocused: Bool
-    @EnvironmentObject private var recordingStore: RecordingStore  // for voice notes
-    @State private var showingRecorder = false
+    // MARK: - State
+    @State private var draft: String = ""
+    @FocusState private var inputFocused: Bool
+    @EnvironmentObject private var recordingStore: RecordingStore
+    @State private var showingRecorder: Bool = false
 
     var body: some View {
         ZStack {
-            // Blurred background
+            // Blurred backdrop
             Rectangle()
                 .fill(.ultraThinMaterial)
                 .ignoresSafeArea()
                 .onTapGesture { isPresented = false }
                 .accessibilityHidden(true)
 
-            // Compact card container
-            VStack(spacing: 16) {
-                // Header with close (✕) and save
+            // Centered card container
+            VStack(spacing: 24) {
+                // Header
                 HStack {
                     Button(action: { isPresented = false }) {
                         Image(systemName: "xmark")
                             .font(.title2)
+                            .padding(8)
                     }
                     .accessibilityLabel("Close add notebook")
 
                     Spacer()
 
                     Text("Add Notebook")
-                        .font(.headline)
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(ColorPalette.current.primary)
                         .accessibilityAddTraits(.isHeader)
 
                     Spacer()
-
-                    Button(action: commitAndDismiss) {
-                        Text("Save")
-                            .fontWeight(.bold)
-                    }
-                    .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+                    // Placeholder for symmetry
+                    Spacer().frame(width: 32)
                 }
-                .padding(.horizontal)
+                .padding(.top, 10)
+                .padding(.horizontal, 32)
 
-                // Input with send + mic
-                HStack(spacing: 12) {
-                    TextField("Enter Notebook Title", text: $draft)
-                        .padding(12)
+                // Input & actions
+                HStack(spacing: 16) {
+                    TextField("Notebook name…", text: $draft)
+                        .font(.title3)
+                        .padding(.vertical, 14)
+                        .padding(.horizontal, 20)
                         .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(UIColor.secondarySystemBackground))
+                            RoundedRectangle(cornerRadius: 25)
+                                .fill(Color(UIColor.systemBackground))
                         )
-                        .focused($textFieldFocused)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 25)
+                                .stroke(ColorPalette.current.accent, lineWidth: 2)
+                        )
+                        .focused($inputFocused)
                         .submitLabel(.done)
-                        .onSubmit { commitAndDismiss() }
+                        .onSubmit(commitAndDismiss)
+                        .accessibilityLabel("Notebook name input field")
 
                     Button(action: commitAndDismiss) {
                         Image(systemName: "arrow.up.circle.fill")
-                            .font(.title2)
+                            .font(.system(size: 34))
+                            .foregroundColor(ColorPalette.current.accent)
                     }
-                    .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityLabel("Save notebook")
 
                     Button(action: { showingRecorder = true }) {
                         Image(systemName: "mic.circle.fill")
-                            .font(.title2)
+                            .font(.system(size: 34))
+                            .foregroundColor(ColorPalette.current.accent)
                     }
                     .accessibilityLabel("Record voice notebook title")
-                    .accessibilityHint("Record and transcribe a new notebook title")
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 32)
+
             }
-            .padding(.vertical, 16)
-            .background(.ultraThinMaterial)
-            .cornerRadius(12)
-            .padding(.horizontal, 24)
+            .frame(maxWidth: 360)
+            .padding(.vertical, 32)
+            .background(.regularMaterial)
+            .cornerRadius(20)
             .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isModal)
             .onAppear {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    textFieldFocused = true
-                    UIAccessibility.post(notification: .layoutChanged, argument: nil)
+                    inputFocused = true
+                    UIAccessibility.post(notification: .layoutChanged, argument: "Add Notebook overlay")
                 }
             }
-            .fullScreenCover(isPresented: $showingRecorder, onDismiss: handleVoiceNoteDismiss) {
+            .fullScreenCover(isPresented: $showingRecorder) {
                 RecordingView(isPresented: $showingRecorder)
                     .environmentObject(recordingStore)
                     .ignoresSafeArea()
@@ -98,26 +105,11 @@ struct AddNoteOverlay: View {
         }
     }
 
-    // MARK: - Commit
+    // MARK: - Actions
     private func commitAndDismiss() {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            onSubmit(trimmed)
-        }
+        if !trimmed.isEmpty { onSubmit(trimmed) }
         isPresented = false
-    }
-
-    // MARK: - Handle Voice Note
-    private func handleVoiceNoteDismiss() {
-        guard let rec = recordingStore.recordings.first else { return }
-        Task {
-            if let text = await recordingStore.speechToText(rec) {
-                await MainActor.run {
-                    draft = text
-                    textFieldFocused = true
-                }
-            }
-        }
     }
 }
 
