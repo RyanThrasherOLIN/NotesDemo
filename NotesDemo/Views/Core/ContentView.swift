@@ -4,9 +4,9 @@ import AVFoundation
 // MARK: - Global Button Tint Mapping
 private enum BottomButton { case settings, search, add }
 private func tintColor(for button: BottomButton) -> Color {
-    let rawMode = UserDefaults.standard.string(forKey: "colorBlindMode")
-                ?? ColorBlindMode.normal.rawValue
-    let mode = ColorBlindMode(rawValue: rawMode) ?? .normal
+    let raw = UserDefaults.standard.string(forKey: "colorBlindMode")
+            ?? ColorBlindMode.normal.rawValue
+    let mode = ColorBlindMode(rawValue: raw) ?? .normal
     switch mode {
     case .normal:
         switch button {
@@ -43,32 +43,31 @@ private func tintColor(for button: BottomButton) -> Color {
 
 // MARK: - ContentView
 struct ContentView: View {
-    // Shared stores
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var store: NoteStore
     @EnvironmentObject private var recordingStore: RecordingStore
     @EnvironmentObject private var nav: NavigationStackHandler
 
-    // Folder picker
     @State private var folders = ["Notes", "Work", "Personal"]
     @State private var currentFolder = "Notes"
-
-    // Overlays
     @State private var showingSearch = false
     @State private var showingAdd = false
     @State private var showingFolders = false
 
-    // Tutorial flags
     @AppStorage("hasSeenTutorial") private var hasSeenTutorial = false
     @AppStorage("alwaysShowTutorial") private var alwaysShowTutorial = false
     @State private var showingTutorial = false
 
+    /// Only true when in the unmodified (normal) color mode
     private var isNormalMode: Bool {
-        ColorBlindMode(rawValue: UserDefaults.standard.string(forKey: "colorBlindMode") ?? ColorBlindMode.normal.rawValue) == .normal
+        ColorBlindMode(rawValue: UserDefaults.standard.string(forKey: "colorBlindMode")
+                       ?? ColorBlindMode.normal.rawValue) == .normal
     }
 
     var body: some View {
         ZStack {
-            ColorPalette.current.background.ignoresSafeArea()
+            ColorPalette.current.background
+                .ignoresSafeArea()
 
             NavigationStack(path: $nav.path) {
                 VStack(spacing: 0) {
@@ -100,7 +99,6 @@ struct ContentView: View {
                 }
             }
 
-            // Overlays
             if showingSearch {
                 SearchOverlay(isPresented: $showingSearch)
                     .environmentObject(store)
@@ -116,7 +114,9 @@ struct ContentView: View {
                 .environmentObject(store)
             }
             if showingFolders {
-                FolderOverlay(isPresented: $showingFolders, selectedFolder: $currentFolder, folders: $folders)
+                FolderOverlay(isPresented: $showingFolders,
+                              selectedFolder: $currentFolder,
+                              folders: $folders)
                     .environmentObject(store)
             }
 
@@ -129,30 +129,42 @@ struct ContentView: View {
     // MARK: Header Bar
     private var headerBar: some View {
         HStack {
-            Button { showingFolders = true } label: { Image(systemName: "folder").font(.title) }
-                .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
-                .accessibilityLabel("Folders")
+            Button { showingFolders = true } label: {
+                Image(systemName: "folder").font(.title)
+            }
             Spacer()
             Text(currentFolder)
                 .font(.system(size: 34, weight: .bold))
-                .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
             Spacer()
-            Button { nav.pushView(.settings) } label: { Image(systemName: "gearshape.fill").font(.title) }
-                .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
-                .accessibilityLabel("Settings")
+            Button { nav.pushView(.settings) } label: {
+                Image(systemName: "gearshape.fill").font(.title)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)
         .padding(.bottom, 8)
+        // explicit blue for default mode
+        .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
     }
 
     // MARK: Bottom Buttons
     private var bottomButtons: some View {
         HStack(spacing: 16) {
-            Button { showingSearch = true } label: { Image(systemName: "magnifyingglass").font(.system(size: 50)).frame(maxWidth: .infinity, minHeight: 80) }
-                .buttonStyle(.borderedProminent).tint(tintColor(for: .search))
-            Button { showingAdd = true } label: { Image(systemName: "plus.circle.fill").font(.system(size: 50)).frame(maxWidth: .infinity, minHeight: 80) }
-                .buttonStyle(.borderedProminent).tint(tintColor(for: .add))
+            Button { showingSearch = true } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 50))
+                    .frame(maxWidth: .infinity, minHeight: 80)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(tintColor(for: .search))
+
+            Button { showingAdd = true } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 50))
+                    .frame(maxWidth: .infinity, minHeight: 80)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(tintColor(for: .add))
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
@@ -169,19 +181,16 @@ struct TutorialView: View {
         TutorialPage(image: "plus.circle.fill", title: "Add Notebook", description: "Tap the + button to create a new notebook."),
         TutorialPage(image: "trash", title: "Delete Notebook", description: "Swipe left on a notebook to delete it."),
         TutorialPage(image: "magnifyingglass", title: "Search Notes", description: "Tap the Search icon to quickly find notes."),
-        TutorialPage(image: "folder", title: "Organization", description: "Notes are organized into Folders → Notebooks → Notes for easy management."),
-        TutorialPage(image: "magnifyingglass.circle", title: "Search Behavior", description: "Search uses AI similarity to fetch the existing note that best matches your question—no new text is generated."),
+        TutorialPage(image: "folder", title: "Organization", description: "Notes are organized into Folders → Notebooks → Notes."),
+        TutorialPage(image: "magnifyingglass.circle", title: "Search Behavior", description: "Search uses AI similarity to fetch your existing note.")
     ]
 
     var body: some View {
         ZStack {
-            // White blur full-screen background
             Rectangle()
                 .fill(.ultraThinMaterial)
                 .ignoresSafeArea()
-                .accessibilityHidden(true)
 
-            // Tutorial card
             VStack(spacing: 20) {
                 TabView(selection: $currentPage) {
                     ForEach(pages.indices, id: \.self) { i in
@@ -210,55 +219,40 @@ struct TutorialView: View {
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                 .frame(height: 200)
 
-                // Page Indicators
                 HStack(spacing: 6) {
                     ForEach(pages.indices, id: \.self) { idx in
                         Capsule()
-                            .fill(idx == currentPage ? ColorPalette.current.accent : Color.gray.opacity(0.4))
+                            .fill(idx == currentPage
+                                  ? ColorPalette.current.accent
+                                  : Color.gray.opacity(0.4))
                             .frame(width: idx == currentPage ? 20 : 6, height: 6)
                     }
                 }
                 .accessibilityHidden(true)
 
-                // Controls
                 HStack {
                     if currentPage < pages.count - 1 {
-                        Button(action: finish) {
-                            Text("Skip")
-                                .font(.body)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Skip tutorial")
+                        Button("Skip", action: finish)
+                            .buttonStyle(.plain)
 
                         Spacer()
 
-                        Button(action: { currentPage += 1 }) {
-                            Text("Next")
-                                .font(.body)
-                                .bold()
-                                .frame(minWidth: 60, minHeight: 32)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(ColorPalette.current.accent)
-                        .accessibilityLabel("Next tutorial page")
+                        Button("Next") { currentPage += 1 }
+                            .buttonStyle(.borderedProminent)
+                            .tint(ColorPalette.current.accent)
+                            .frame(minWidth: 60, minHeight: 32)
                     } else {
-                        Button(action: finish) {
-                            Text("Done")
-                                .font(.body)
-                                .bold()
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(ColorPalette.current.accent)
-                        .accessibilityLabel("Finish tutorial")
+                        Button("Done", action: finish)
+                            .buttonStyle(.borderedProminent)
+                            .tint(ColorPalette.current.accent)
+                            .frame(maxWidth: .infinity)
                     }
                 }
             }
             .padding(20)
-            .background(Color.white.opacity(0.9))
+            .background(Color(.systemBackground).opacity(0.9))
             .cornerRadius(12)
             .padding(.horizontal, 24)
-            .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isModal)
         }
     }
@@ -269,35 +263,30 @@ struct TutorialView: View {
     }
 }
 
-// MARK: TutorialPage
-private struct TutorialPage {
-    let image: String
-    let title: String
-    let description: String
-}
-
 // MARK: NoteList
 struct NoteList: View {
     @Binding var currentFolder: String
     @EnvironmentObject private var store: NoteStore
 
-    private var isNormalMode: Bool {
-        ColorBlindMode(rawValue: UserDefaults.standard.string(forKey: "colorBlindMode") ?? ColorBlindMode.normal.rawValue) == .normal
-    }
-
     var body: some View {
         List {
             if let map = store.notesByFolder[currentFolder] {
-                ForEach(map.keys.sorted(), id: \ .self) { title in
-                    NavigationLink(value: NavigationDestination.noteDetail(folder: currentFolder, noteTitle: title)) {
+                ForEach(map.keys.sorted(), id: \.self) { title in
+                    NavigationLink(
+                        value: NavigationDestination.noteDetail(folder: currentFolder,
+                                                               noteTitle: title)
+                    ) {
                         Text(title)
                             .font(.title2)
                             .padding(.vertical, 6)
-                            .foregroundColor(isNormalMode ? .black : ColorPalette.current.primary)
+                            .foregroundColor(ColorPalette.current.primary)
                     }
                     .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) { store.deleteNoteBook(title: title, in: currentFolder) }
-                        label: { Label("Delete", systemImage: "trash") }
+                        Button(role: .destructive) {
+                            store.deleteNoteBook(title: title, in: currentFolder)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
                         .tint(tintColor(for: .settings))
                     }
                 }
@@ -305,5 +294,13 @@ struct NoteList: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .listRowBackground(Color.clear)
     }
+}
+
+// MARK: TutorialPage
+private struct TutorialPage {
+    let image: String
+    let title: String
+    let description: String
 }
