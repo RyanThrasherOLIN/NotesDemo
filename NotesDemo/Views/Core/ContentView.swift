@@ -1,6 +1,5 @@
-// ContentView.swift
-
 import SwiftUI
+import AVFoundation
 
 // MARK: - Global Button Tint Mapping
 private enum BottomButton { case settings, search, add }
@@ -43,7 +42,6 @@ private func tintColor(for button: BottomButton) -> Color {
 }
 
 // MARK: - ContentView
-
 struct ContentView: View {
     // Shared stores
     @EnvironmentObject private var store: NoteStore
@@ -59,21 +57,18 @@ struct ContentView: View {
     @State private var showingAdd = false
     @State private var showingFolders = false
 
-    // Tutorial popup
+    // Tutorial flags
     @AppStorage("hasSeenTutorial") private var hasSeenTutorial = false
+    @AppStorage("alwaysShowTutorial") private var alwaysShowTutorial = false
     @State private var showingTutorial = false
 
-    // Check if in normal mode for header styling
     private var isNormalMode: Bool {
-        let raw = UserDefaults.standard.string(forKey: "colorBlindMode")
-                  ?? ColorBlindMode.normal.rawValue
-        return ColorBlindMode(rawValue: raw) == .normal
+        ColorBlindMode(rawValue: UserDefaults.standard.string(forKey: "colorBlindMode") ?? ColorBlindMode.normal.rawValue) == .normal
     }
 
     var body: some View {
         ZStack {
-            ColorPalette.current.background
-                .ignoresSafeArea()
+            ColorPalette.current.background.ignoresSafeArea()
 
             NavigationStack(path: $nav.path) {
                 VStack(spacing: 0) {
@@ -99,6 +94,11 @@ struct ContentView: View {
                 }
             }
             .accessibilityHidden(showingSearch || showingTutorial)
+            .onAppear {
+                if alwaysShowTutorial || !hasSeenTutorial {
+                    showingTutorial = true
+                }
+            }
 
             // Overlays
             if showingSearch {
@@ -109,150 +109,195 @@ struct ContentView: View {
             }
             if showingAdd {
                 AddNoteOverlay(isPresented: $showingAdd) { title in
-                    let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !trimmed.isEmpty else { return }
-                    store.addNoteBook(title: trimmed, to: currentFolder)
+                    let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !t.isEmpty else { return }
+                    store.addNoteBook(title: t, to: currentFolder)
                 }
                 .environmentObject(store)
             }
             if showingFolders {
-                FolderOverlay(isPresented: $showingFolders,
-                              selectedFolder: $currentFolder,
-                              folders: $folders)
+                FolderOverlay(isPresented: $showingFolders, selectedFolder: $currentFolder, folders: $folders)
                     .environmentObject(store)
             }
 
-            // Tutorial popup
             if showingTutorial {
-                ZStack {
-                    Color.black.opacity(0.4).ignoresSafeArea()
-                    VStack(spacing: 20) {
-                        Text("Welcome to NotesDemo!")
-                            .font(.title2).bold()
-                            .foregroundColor(ColorPalette.current.primary)
-                        Text("""
-• Tap + to add a new notebook
-• Swipe to delete notebooks
-• Use Search to find notes quickly
-""")
-                            .multilineTextAlignment(.leading)
-                            .padding()
-                            .foregroundColor(ColorPalette.current.primary)
-                        Button("Got it!") {
-                            hasSeenTutorial = true
-                            showingTutorial = false
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(ColorPalette.current.accent)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                    }
-                    .padding(24)
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(12)
-                    .padding(.horizontal, 40)
-                    .onAppear {
-                        UIAccessibility.post(notification: .layoutChanged,
-                                               argument: nil)
-                    }
-                }
-            }
-        }
-        .onAppear {
-            if !hasSeenTutorial {
-                showingTutorial = true
+                TutorialView(showingTutorial: $showingTutorial)
             }
         }
     }
 
-    // MARK: - Header Bar
+    // MARK: Header Bar
     private var headerBar: some View {
         HStack {
-            Button { showingFolders = true } label: {
-                Image(systemName: "folder")
-                    .font(.title)
-            }
-            .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
-            .accessibilityLabel("Folders")
-
-            Spacer()
-
-            Text(currentFolder)
-                .font(.system(size: 36, weight: .bold))
+            Button { showingFolders = true } label: { Image(systemName: "folder").font(.title) }
                 .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
-
+                .accessibilityLabel("Folders")
             Spacer()
-
-            Button { nav.pushView(.settings) } label: {
-                Image(systemName: "gearshape.fill")
-                    .font(.title)
-            }
-            .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
-            .accessibilityLabel("Settings")
+            Text(currentFolder)
+                .font(.system(size: 34, weight: .bold))
+                .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
+            Spacer()
+            Button { nav.pushView(.settings) } label: { Image(systemName: "gearshape.fill").font(.title) }
+                .foregroundColor(isNormalMode ? .blue : ColorPalette.current.primary)
+                .accessibilityLabel("Settings")
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)
         .padding(.bottom, 8)
     }
 
-    // MARK: - Bottom Buttons
+    // MARK: Bottom Buttons
     private var bottomButtons: some View {
         HStack(spacing: 16) {
-            Button { showingSearch = true } label: {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 50))
-                    .frame(maxWidth: .infinity, minHeight: 80)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(tintColor(for: .search))
-
-            Button { showingAdd = true } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 50))
-                    .frame(maxWidth: .infinity, minHeight: 80)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(tintColor(for: .add))
+            Button { showingSearch = true } label: { Image(systemName: "magnifyingglass").font(.system(size: 50)).frame(maxWidth: .infinity, minHeight: 80) }
+                .buttonStyle(.borderedProminent).tint(tintColor(for: .search))
+            Button { showingAdd = true } label: { Image(systemName: "plus.circle.fill").font(.system(size: 50)).frame(maxWidth: .infinity, minHeight: 80) }
+                .buttonStyle(.borderedProminent).tint(tintColor(for: .add))
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
     }
 }
 
-// MARK: - NoteList
+// MARK: TutorialView
+struct TutorialView: View {
+    @Binding var showingTutorial: Bool
+    @AppStorage("hasSeenTutorial") private var hasSeenTutorial = false
+    @State private var currentPage = 0
+
+    private let pages = [
+        TutorialPage(image: "plus.circle.fill", title: "Add Notebook", description: "Tap the + button to create a new notebook."),
+        TutorialPage(image: "trash", title: "Delete Notebook", description: "Swipe left on a notebook to delete it."),
+        TutorialPage(image: "magnifyingglass", title: "Search Notes", description: "Tap the Search icon to quickly find notes."),
+        TutorialPage(image: "folder", title: "Organization", description: "Notes are organized into Folders → Notebooks → Notes for easy management."),
+        TutorialPage(image: "magnifyingglass.circle", title: "Search Behavior", description: "Search uses AI similarity to fetch the existing note that best matches your question—no new text is generated."),
+    ]
+
+    var body: some View {
+        ZStack {
+            // White blur full-screen background
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
+
+            // Tutorial card
+            VStack(spacing: 20) {
+                TabView(selection: $currentPage) {
+                    ForEach(pages.indices, id: \.self) { i in
+                        VStack(spacing: 12) {
+                            Image(systemName: pages[i].image)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 60, height: 60)
+                                .foregroundColor(ColorPalette.current.accent)
+
+                            Text(pages[i].title)
+                                .font(.title3).bold()
+                                .foregroundColor(ColorPalette.current.primary)
+                                .accessibilityAddTraits(.isHeader)
+
+                            Text(pages[i].description)
+                                .font(.body)
+                                .multilineTextAlignment(.center)
+                                .foregroundColor(ColorPalette.current.primary)
+                                .accessibilityLabel(pages[i].description)
+                        }
+                        .tag(i)
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                .frame(height: 200)
+
+                // Page Indicators
+                HStack(spacing: 6) {
+                    ForEach(pages.indices, id: \.self) { idx in
+                        Capsule()
+                            .fill(idx == currentPage ? ColorPalette.current.accent : Color.gray.opacity(0.4))
+                            .frame(width: idx == currentPage ? 20 : 6, height: 6)
+                    }
+                }
+                .accessibilityHidden(true)
+
+                // Controls
+                HStack {
+                    if currentPage < pages.count - 1 {
+                        Button(action: finish) {
+                            Text("Skip")
+                                .font(.body)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Skip tutorial")
+
+                        Spacer()
+
+                        Button(action: { currentPage += 1 }) {
+                            Text("Next")
+                                .font(.body)
+                                .bold()
+                                .frame(minWidth: 60, minHeight: 32)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(ColorPalette.current.accent)
+                        .accessibilityLabel("Next tutorial page")
+                    } else {
+                        Button(action: finish) {
+                            Text("Done")
+                                .font(.body)
+                                .bold()
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(ColorPalette.current.accent)
+                        .accessibilityLabel("Finish tutorial")
+                    }
+                }
+            }
+            .padding(20)
+            .background(Color.white.opacity(0.9))
+            .cornerRadius(12)
+            .padding(.horizontal, 24)
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(.isModal)
+        }
+    }
+
+    private func finish() {
+        hasSeenTutorial = true
+        showingTutorial = false
+    }
+}
+
+// MARK: TutorialPage
+private struct TutorialPage {
+    let image: String
+    let title: String
+    let description: String
+}
+
+// MARK: NoteList
 struct NoteList: View {
     @Binding var currentFolder: String
     @EnvironmentObject private var store: NoteStore
 
     private var isNormalMode: Bool {
-        let raw = UserDefaults.standard.string(forKey: "colorBlindMode")
-                  ?? ColorBlindMode.normal.rawValue
-        return ColorBlindMode(rawValue: raw) == .normal
-    }
-
-    init(currentFolder: Binding<String>) {
-        self._currentFolder = currentFolder
+        ColorBlindMode(rawValue: UserDefaults.standard.string(forKey: "colorBlindMode") ?? ColorBlindMode.normal.rawValue) == .normal
     }
 
     var body: some View {
         List {
-            if let folderMap = store.notesByFolder[currentFolder] {
-                ForEach(folderMap.keys.sorted(), id: \ .self) { title in
-                    NavigationLink(value: NavigationDestination.noteDetail(
-                        folder: currentFolder,
-                        noteTitle: title
-                    )) {
+            if let map = store.notesByFolder[currentFolder] {
+                ForEach(map.keys.sorted(), id: \ .self) { title in
+                    NavigationLink(value: NavigationDestination.noteDetail(folder: currentFolder, noteTitle: title)) {
                         Text(title)
                             .font(.title2)
                             .padding(.vertical, 6)
                             .foregroundColor(isNormalMode ? .black : ColorPalette.current.primary)
                     }
                     .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            store.deleteNoteBook(title: title, in: currentFolder)
-                        } label: {
-                            Label("Delete Notebook", systemImage: "trash")
-                        }
+                        Button(role: .destructive) { store.deleteNoteBook(title: title, in: currentFolder) }
+                        label: { Label("Delete", systemImage: "trash") }
                         .tint(tintColor(for: .settings))
                     }
                 }
@@ -262,15 +307,3 @@ struct NoteList: View {
         .scrollContentBackground(.hidden)
     }
 }
-
-// MARK: - Preview
-#if DEBUG
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-            .environmentObject(NoteStore())
-            .environmentObject(RecordingStore())
-            .environmentObject(NavigationStackHandler.shared)
-    }
-}
-#endif

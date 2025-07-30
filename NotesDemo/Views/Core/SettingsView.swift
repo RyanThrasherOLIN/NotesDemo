@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 
+// MARK: - SettingsView (updated)
 struct SettingsView: View {
     // MARK: - Environment
     @EnvironmentObject private var recordingStore: RecordingStore
@@ -10,6 +11,7 @@ struct SettingsView: View {
     @AppStorage("apiURL") private var apiURL: String = "https://happily-complete-stinkbug.ngrok-free.app/"
     @AppStorage("username") private var username: String = ""
     @AppStorage("colorBlindMode") private var rawColorBlindMode: String = ColorBlindMode.normal.rawValue
+    @AppStorage("alwaysShowTutorial") private var alwaysShowTutorial = false
     private var colorMode: ColorBlindMode { ColorBlindMode(rawValue: rawColorBlindMode) ?? .normal }
 
     // MARK: - View State
@@ -18,7 +20,6 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            // MARK: User section
             Section("User") {
                 TextField("Enter username", text: $username)
                     .autocapitalization(.none)
@@ -27,7 +28,6 @@ struct SettingsView: View {
                     .accessibilityHint("Enter your display name")
             }
 
-            // MARK: Server section
             Section("Server") {
                 TextField("Server URL", text: $apiURL)
                     .autocapitalization(.none)
@@ -38,10 +38,9 @@ struct SettingsView: View {
                     .accessibilityHint("Edit the backend server endpoint URL")
             }
 
-            // MARK: Color Mode Section
             Section("Color Mode") {
                 Picker("Color Mode", selection: $rawColorBlindMode) {
-                    ForEach(ColorBlindMode.allCases, id: \.rawValue) { mode in
+                    ForEach(ColorBlindMode.allCases, id: \ .rawValue) { mode in
                         Text(
                             mode.rawValue
                                 .capitalized
@@ -86,14 +85,19 @@ struct SettingsView: View {
                 .padding(.top, 8)
             }
 
-            // MARK: Back Door section
+            // New Tutorial Section
+            Section("Tutorial") {
+                Toggle("Show tutorial every launch", isOn: $alwaysShowTutorial)
+                    .accessibilityLabel("Always show tutorial")
+                    .accessibilityHint("Toggle to see tutorial every time the app launches")
+            }
+
             Section("Back Door") {
                 NavigationLink("View All Synced Lines") {
                     SyncedLinesView()
                 }
             }
 
-            // MARK: Delete Notes Section
             Section("Delete Notes") {
                 Button("Delete All Notes") {
                     showingDeleteAllConfirmation = true
@@ -113,7 +117,6 @@ struct SettingsView: View {
                 )
             }
 
-            // MARK: Actions Section
             Section {
                 Button("Record New Audio") {
                     showingRecorder = true
@@ -129,7 +132,6 @@ struct SettingsView: View {
         .fullScreenCover(isPresented: $showingRecorder) {
             RecordingView(isPresented: $showingRecorder)
                 .environmentObject(recordingStore)
-                .ignoresSafeArea()
         }
     }
 }
