@@ -120,15 +120,20 @@ struct SearchOverlay: View {
     private func resultCard(_ resp: AIResponse) -> some View {
         VStack(spacing: 16) {
             HStack(alignment: .top) {
-                Text(resp.answer)
-                    .font(.body)
-                    .foregroundColor(.primary)
-                    .multilineTextAlignment(.leading)
-                    .onTapGesture {
-                        noteStore.highlightedNoteID = resp.id
-                        nav.pushView(.noteDetail(folder: resp.folder, noteTitle: resp.notebook))
-                        isPresented = false
+                VStack {
+                    if let onDeviceAnswer = resp.onDeviceAnswer {
+                        Text(onDeviceAnswer)
                     }
+                    Text(resp.answer)
+                        .font(.body)
+                        .foregroundColor(.primary)
+                        .multilineTextAlignment(.leading)
+                        .onTapGesture {
+                            noteStore.highlightedNoteID = resp.id
+                            nav.pushView(.noteDetail(folder: resp.folder, noteTitle: resp.notebook))
+                            isPresented = false
+                        }
+                }
                 Spacer()
                 Button(action: refreshNextAnswer) {
                     Image(systemName: "arrow.clockwise.circle.fill")

@@ -1,6 +1,6 @@
 import SwiftUI
 import AVFoundation
-import SwiftLAME
+//import SwiftLAME
 import AudioToolbox
 
 /// Overlay for audio recording that only starts when the user taps.
@@ -172,29 +172,30 @@ struct RecordingView: View {
             return nil
         }
         let dst = src.deletingPathExtension().appendingPathExtension("mp3")
-        let config = LameConfiguration(
-            sampleRate: .custom(44100),
-            bitrateMode: .constant(128),
-            quality: .best
-        )
-        do {
-            let encoder = try SwiftLameEncoder(
-                sourceUrl: src,
-                configuration: config,
-                destinationUrl: dst
-            )
-            try await encoder.encode(priority: .userInitiated)
-            let rec = Recording(url: dst, createdAt: Date())
-            await MainActor.run {
-                recordingStore.add(rec)
-                isPresented = false
-            }
-            return rec
-        } catch {
-            print("MP3 encode failed: \(error)")
-            await MainActor.run { isPresented = false }
-            return nil
-        }
+//        let config = LameConfiguration(
+//            sampleRate: .custom(44100),
+//            bitrateMode: .constant(128),
+//            quality: .best
+//        )
+//        do {
+//            let encoder = try SwiftLameEncoder(
+//                sourceUrl: src,
+//                configuration: config,
+//                destinationUrl: dst
+//            )
+//            try await encoder.encode(priority: .userInitiated)
+//            let rec = Recording(url: dst, createdAt: Date())
+//            await MainActor.run {
+//                recordingStore.add(rec)
+//                isPresented = false
+//            }
+//            return rec
+//        } catch {
+//            print("MP3 encode failed: \(error)")
+//            await MainActor.run { isPresented = false }
+//            return nil
+//        }
+        return nil
     }
 }
 

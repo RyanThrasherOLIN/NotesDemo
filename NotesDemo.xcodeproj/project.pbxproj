@@ -7,10 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		980C7F7A2E14596E0004516A /* SwiftLAME in Frameworks */ = {isa = PBXBuildFile; productRef = 980C7F792E14596E0004516A /* SwiftLAME */; };
+		826D55B22E429E5700BE5C47 /* KDTree in Frameworks */ = {isa = PBXBuildFile; productRef = 826D55B12E429E5700BE5C47 /* KDTree */; };
+		826D55B52E43A67000BE5C47 /* SwiftFaiss in Frameworks */ = {isa = PBXBuildFile; productRef = 826D55B42E43A67000BE5C47 /* SwiftFaiss */; };
+		82D925682E411361001C3275 /* mxbai-embed-large-v1.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 82D925672E411361001C3275 /* mxbai-embed-large-v1.mlpackage */; };
+		82D9256D2E41B0D2001C3275 /* all-mpnet-base-v2.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 82D9256C2E41B0D2001C3275 /* all-mpnet-base-v2.mlpackage */; };
+		82D926222E4277E0001C3275 /* Embeddings in Frameworks */ = {isa = PBXBuildFile; productRef = 82D926212E4277E0001C3275 /* Embeddings */; };
+		82D926242E4277E0001C3275 /* MLTensorUtils in Frameworks */ = {isa = PBXBuildFile; productRef = 82D926232E4277E0001C3275 /* MLTensorUtils */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		82D925672E411361001C3275 /* mxbai-embed-large-v1.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = "mxbai-embed-large-v1.mlpackage"; sourceTree = "<group>"; };
+		82D9256C2E41B0D2001C3275 /* all-mpnet-base-v2.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = "all-mpnet-base-v2.mlpackage"; sourceTree = "<group>"; };
 		98ED7DB82E0DD26100EAB137 /* EchoMinds.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EchoMinds.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -40,7 +47,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				980C7F7A2E14596E0004516A /* SwiftLAME in Frameworks */,
+				82D926222E4277E0001C3275 /* Embeddings in Frameworks */,
+				826D55B52E43A67000BE5C47 /* SwiftFaiss in Frameworks */,
+				826D55B22E429E5700BE5C47 /* KDTree in Frameworks */,
+				82D926242E4277E0001C3275 /* MLTensorUtils in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -50,6 +60,8 @@
 		98ED7DAF2E0DD26100EAB137 = {
 			isa = PBXGroup;
 			children = (
+				82D925672E411361001C3275 /* mxbai-embed-large-v1.mlpackage */,
+				82D9256C2E41B0D2001C3275 /* all-mpnet-base-v2.mlpackage */,
 				98ED7DBA2E0DD26100EAB137 /* NotesDemo */,
 				98ED7DB92E0DD26100EAB137 /* Products */,
 			);
@@ -83,7 +95,10 @@
 			);
 			name = NotesDemo;
 			packageProductDependencies = (
-				980C7F792E14596E0004516A /* SwiftLAME */,
+				82D926212E4277E0001C3275 /* Embeddings */,
+				82D926232E4277E0001C3275 /* MLTensorUtils */,
+				826D55B12E429E5700BE5C47 /* KDTree */,
+				826D55B42E43A67000BE5C47 /* SwiftFaiss */,
 			);
 			productName = NotesDemo;
 			productReference = 98ED7DB82E0DD26100EAB137 /* EchoMinds.app */;
@@ -114,7 +129,9 @@
 			mainGroup = 98ED7DAF2E0DD26100EAB137;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				980C7F782E14596E0004516A /* XCRemoteSwiftPackageReference "swiftlame" */,
+				82D926202E4277E0001C3275 /* XCRemoteSwiftPackageReference "swift-embeddings" */,
+				826D55B02E429E5700BE5C47 /* XCRemoteSwiftPackageReference "KDTree" */,
+				826D55B32E43A67000BE5C47 /* XCRemoteSwiftPackageReference "SwiftFaiss" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 98ED7DB92E0DD26100EAB137 /* Products */;
@@ -141,6 +158,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				82D925682E411361001C3275 /* mxbai-embed-large-v1.mlpackage in Sources */,
+				82D9256D2E41B0D2001C3275 /* all-mpnet-base-v2.mlpackage in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -354,21 +373,52 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		980C7F782E14596E0004516A /* XCRemoteSwiftPackageReference "swiftlame" */ = {
+		826D55B02E429E5700BE5C47 /* XCRemoteSwiftPackageReference "KDTree" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/hidden-spectrum/swiftlame";
+			repositoryURL = "https://github.com/Bersaelor/KDTree";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.1.0;
+				minimumVersion = 1.4.2;
+			};
+		};
+		826D55B32E43A67000BE5C47 /* XCRemoteSwiftPackageReference "SwiftFaiss" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jkrukowski/SwiftFaiss";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.0.8;
+			};
+		};
+		82D926202E4277E0001C3275 /* XCRemoteSwiftPackageReference "swift-embeddings" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jkrukowski/swift-embeddings";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.0.19;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		980C7F792E14596E0004516A /* SwiftLAME */ = {
+		826D55B12E429E5700BE5C47 /* KDTree */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 980C7F782E14596E0004516A /* XCRemoteSwiftPackageReference "swiftlame" */;
-			productName = SwiftLAME;
+			package = 826D55B02E429E5700BE5C47 /* XCRemoteSwiftPackageReference "KDTree" */;
+			productName = KDTree;
+		};
+		826D55B42E43A67000BE5C47 /* SwiftFaiss */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 826D55B32E43A67000BE5C47 /* XCRemoteSwiftPackageReference "SwiftFaiss" */;
+			productName = SwiftFaiss;
+		};
+		82D926212E4277E0001C3275 /* Embeddings */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 82D926202E4277E0001C3275 /* XCRemoteSwiftPackageReference "swift-embeddings" */;
+			productName = Embeddings;
+		};
+		82D926232E4277E0001C3275 /* MLTensorUtils */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 82D926202E4277E0001C3275 /* XCRemoteSwiftPackageReference "swift-embeddings" */;
+			productName = MLTensorUtils;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
