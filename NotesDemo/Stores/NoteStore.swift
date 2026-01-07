@@ -102,6 +102,24 @@ final class NoteStore: ObservableObject {
 
     private var hasFetchedNotes = false
 
+    func prepopulateNotes(completion: (() -> Void)? = nil) {
+        let endpoint = baseURL.appendingPathComponent("prepopulate_notes")
+        var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)
+        comps?.queryItems = [URLQueryItem(name: "device_id", value: userID), URLQueryItem(name: "notes_file", value: "Q_AND_A.csv")]
+        guard let url = comps?.url else { return }
+
+        URLSession.shared.dataTask(with: url) { data, _, error in
+            if let error = error {
+                print("prepopulateUserNotes error:", error)
+                return
+            }
+            if let completion = completion {
+                completion()
+            }
+        }
+        .resume()
+    }
+    
     /// Fetches all user notes once per app launch.
     func fetchUserNotes() {
         guard !hasFetchedNotes else { return }
@@ -121,6 +139,16 @@ final class NoteStore: ObservableObject {
             do {
                 let serverNotes = try JSONDecoder().decode([ServerNote].self, from: data)
                 let filtered = serverNotes.filter { $0.note != $0.notebook }
+                if filtered.isEmpty {
+                    DispatchQueue.global(qos: .background).async {
+                        self.hasFetchedNotes = false
+                        print("PREPOPULATING NOTES!")
+                        self.prepopulateNotes() {
+                            self.fetchUserNotes()
+                        }
+                    }
+                    return
+                }
                 DispatchQueue.main.async {
                     var updated = self.notesByFolder
                     for s in filtered {
