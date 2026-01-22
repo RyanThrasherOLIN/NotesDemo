@@ -132,6 +132,7 @@ struct ContentView: View {
             Button { showingFolders = true } label: {
                 Image(systemName: "folder").font(.title)
             }
+            .accessibilityLabel("Folders")
             Spacer()
             Text(currentFolder)
                 .font(.system(size: 34, weight: .bold))
@@ -139,6 +140,7 @@ struct ContentView: View {
             Button { nav.pushView(.settings) } label: {
                 Image(systemName: "gearshape.fill").font(.title)
             }
+            .accessibilityLabel("Settings")
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)

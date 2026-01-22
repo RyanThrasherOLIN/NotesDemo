@@ -13,120 +13,148 @@ struct SettingsView: View {
     @AppStorage("colorBlindMode") private var rawColorBlindMode: String = ColorBlindMode.normal.rawValue
     @AppStorage("alwaysShowTutorial") private var alwaysShowTutorial = false
     private var colorMode: ColorBlindMode { ColorBlindMode(rawValue: rawColorBlindMode) ?? .normal }
+    @State private var isBusy = false
 
     // MARK: - View State
     @State private var showingRecorder = false
     @State private var showingDeleteAllConfirmation = false
 
     var body: some View {
-        Form {
-            Section("User") {
-                TextField("Enter username", text: $username)
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
-                    .accessibilityLabel("Username")
-                    .accessibilityHint("Enter your display name")
-            }
-
-            Section("Server") {
-                TextField("Server URL", text: $apiURL)
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
-                    .keyboardType(.URL)
-                    .textContentType(.URL)
-                    .accessibilityLabel("Server URL")
-                    .accessibilityHint("Edit the backend server endpoint URL")
-            }
-
-            Section("Color Mode") {
-                Picker("Color Mode", selection: $rawColorBlindMode) {
-                    ForEach(ColorBlindMode.allCases, id: \ .rawValue) { mode in
-                        Text(
-                            mode.rawValue
-                                .capitalized
-                                .replacingOccurrences(of: "Highcontrast", with: "High Contrast")
-                        )
-                        .tag(mode.rawValue)
-                    }
+        ZStack {
+            Form {
+                Section("User") {
+                    TextField("Enter username", text: $username)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .accessibilityLabel("Username")
+                        .accessibilityHint("Enter your display name")
                 }
-                .pickerStyle(.segmented)
-                .accessibilityLabel("Color mode selection")
-                .accessibilityHint("Select a color or contrast mode for the app")
-
-                // Palette Preview
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Palette Preview")
-                        .font(.subheadline).bold()
-                    HStack {
-                        Text("Primary")
-                            .frame(width: 80, alignment: .leading)
-                        Rectangle()
-                            .fill(ColorPalette.current.primary)
-                            .frame(width: 30, height: 30)
-                            .cornerRadius(4)
-                    }
-                    HStack {
-                        Text("Secondary")
-                            .frame(width: 80, alignment: .leading)
-                        Rectangle()
-                            .fill(ColorPalette.current.secondary)
-                            .frame(width: 30, height: 30)
-                            .cornerRadius(4)
-                    }
-                    HStack {
-                        Text("Accent")
-                            .frame(width: 80, alignment: .leading)
-                        Rectangle()
-                            .fill(ColorPalette.current.accent)
-                            .frame(width: 30, height: 30)
-                            .cornerRadius(4)
-                    }
+                
+                Section("Server") {
+                    TextField("Server URL", text: $apiURL)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .keyboardType(.URL)
+                        .textContentType(.URL)
+                        .accessibilityLabel("Server URL")
+                        .accessibilityHint("Edit the backend server endpoint URL")
                 }
-                .padding(.top, 8)
-            }
-
-            // New Tutorial Section
-            Section("Tutorial") {
-                Toggle("Show tutorial every launch", isOn: $alwaysShowTutorial)
-                    .accessibilityLabel("Always show tutorial")
-                    .accessibilityHint("Toggle to see tutorial every time the app launches")
-            }
-
-            Section("Back Door") {
-                NavigationLink("View All Synced Lines") {
-                    SyncedLinesView()
-                }
-            }
-
-            Section("Delete Notes") {
-                Button("Delete All Notes") {
-                    showingDeleteAllConfirmation = true
-                }
-                .foregroundColor(.red)
-                .alert(
-                    "Delete All Notes", isPresented: $showingDeleteAllConfirmation,
-                    actions: {
-                        Button("Delete", role: .destructive) {
-                            noteStore.deleteAllNotes()
+                
+                Section("Color Mode") {
+                    Picker("Color Mode", selection: $rawColorBlindMode) {
+                        ForEach(ColorBlindMode.allCases, id: \ .rawValue) { mode in
+                            Text(
+                                mode.rawValue
+                                    .capitalized
+                                    .replacingOccurrences(of: "Highcontrast", with: "High Contrast")
+                            )
+                            .tag(mode.rawValue)
                         }
-                        Button("Cancel", role: .cancel) {}
-                    },
-                    message: {
-                        Text("Are you sure you want to delete all notes? This cannot be undone.")
                     }
-                )
+                    .pickerStyle(.segmented)
+                    .accessibilityLabel("Color mode selection")
+                    .accessibilityHint("Select a color or contrast mode for the app")
+                    
+                    // Palette Preview
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Palette Preview")
+                            .font(.subheadline).bold()
+                        HStack {
+                            Text("Primary")
+                                .frame(width: 80, alignment: .leading)
+                            Rectangle()
+                                .fill(ColorPalette.current.primary)
+                                .frame(width: 30, height: 30)
+                                .cornerRadius(4)
+                        }
+                        HStack {
+                            Text("Secondary")
+                                .frame(width: 80, alignment: .leading)
+                            Rectangle()
+                                .fill(ColorPalette.current.secondary)
+                                .frame(width: 30, height: 30)
+                                .cornerRadius(4)
+                        }
+                        HStack {
+                            Text("Accent")
+                                .frame(width: 80, alignment: .leading)
+                            Rectangle()
+                                .fill(ColorPalette.current.accent)
+                                .frame(width: 30, height: 30)
+                                .cornerRadius(4)
+                        }
+                    }
+                    .padding(.top, 8)
+                }
+                
+                // New Tutorial Section
+                Section("Tutorial") {
+                    Toggle("Show tutorial every launch", isOn: $alwaysShowTutorial)
+                        .accessibilityLabel("Always show tutorial")
+                        .accessibilityHint("Toggle to see tutorial every time the app launches")
+                }
+                
+                Section("Back Door") {
+                    NavigationLink("View All Synced Lines") {
+                        SyncedLinesView()
+                    }
+                }
+                
+                Section("Prepopulate Notes") {
+                    Button("Load Accessible Tech Notes") {
+                        isBusy = true
+                        DispatchQueue.global(qos: .background).async {
+                            noteStore.prepopulateNotes() {
+                                isBusy = false
+                            }
+                        }
+                    }
+                }
+                
+                Section("Delete Notes") {
+                    Button("Delete All Notes") {
+                        showingDeleteAllConfirmation = true
+                    }
+                    .foregroundColor(.red)
+                    .alert(
+                        "Delete All Notes", isPresented: $showingDeleteAllConfirmation,
+                        actions: {
+                            Button("Delete", role: .destructive) {
+                                noteStore.deleteAllNotes()
+                            }
+                            Button("Cancel", role: .cancel) {}
+                        },
+                        message: {
+                            Text("Are you sure you want to delete all notes? This cannot be undone.")
+                        }
+                    )
+                }
+                
+                Section {
+                    Button("Record New Audio") {
+                        showingRecorder = true
+                    }
+                    .accessibilityLabel("Record new note")
+                    
+                    Button("Log Out") {
+                        // your logout logic here
+                    }
+                    .foregroundColor(.red)
+                }
             }
+            .disabled(isBusy)
+            if isBusy {
+                // blocks interaction + dims UI
+                Color.black.opacity(0.25)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
 
-            Section {
-                Button("Record New Audio") {
-                    showingRecorder = true
-                }
-                .accessibilityLabel("Record new note")
-
-                Button("Log Out") {
-                    // your logout logic here
-                }
-                .foregroundColor(.red)
+                ProgressView("Populating Notes…")
+                    .padding(20)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(12)
+                    .shadow(radius: 10)
+                    .transition(.scale.combined(with: .opacity))
             }
         }
         .fullScreenCover(isPresented: $showingRecorder) {
