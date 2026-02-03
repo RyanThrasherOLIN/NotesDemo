@@ -74,12 +74,12 @@ struct AddNoteOverlay: View {
                     .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityLabel("Save notebook")
 
-                    Button(action: { showingRecorder = true }) {
-                        Image(systemName: "mic.circle.fill")
-                            .font(.system(size: 34))
-                            .foregroundColor(ColorPalette.current.accent)
-                    }
-                    .accessibilityLabel("Record voice notebook title")
+//                    Button(action: { showingRecorder = true }) {
+//                        Image(systemName: "mic.circle.fill")
+//                            .font(.system(size: 34))
+//                            .foregroundColor(ColorPalette.current.accent)
+//                    }
+//                    .accessibilityLabel("Record voice notebook title")
                 }
                 .padding(.horizontal, 32)
 

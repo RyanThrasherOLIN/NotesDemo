@@ -9,7 +9,7 @@ struct SettingsView: View {
 
     // MARK: - Persistent Settings
     @AppStorage("apiURL") private var apiURL: String = "https://happily-complete-stinkbug.ngrok-free.app/"
-    @AppStorage("username") private var username: String = ""
+    @AppStorage("username") private var email: String = ""
     @AppStorage("colorBlindMode") private var rawColorBlindMode: String = ColorBlindMode.normal.rawValue
     @AppStorage("alwaysShowTutorial") private var alwaysShowTutorial = false
     private var colorMode: ColorBlindMode { ColorBlindMode(rawValue: rawColorBlindMode) ?? .normal }
@@ -22,12 +22,12 @@ struct SettingsView: View {
     var body: some View {
         ZStack {
             Form {
-                Section("User") {
-                    TextField("Enter username", text: $username)
+                Section("Email") {
+                    TextField("Enter email", text: $email)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
-                        .accessibilityLabel("Username")
-                        .accessibilityHint("Enter your display name")
+                        .accessibilityLabel("Email")
+                        .accessibilityHint("Enter your email")
                 }
                 
                 Section("Server") {

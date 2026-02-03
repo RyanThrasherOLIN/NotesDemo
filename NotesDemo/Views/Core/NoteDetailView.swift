@@ -132,13 +132,13 @@ struct NoteDetailView: View {
             }
             .accessibilityLabel("Send note")
             .disabled(newMessage.trimmingCharacters(in: .whitespaces).isEmpty)
-
-            Button(action: { showingRecorder = true }) {
-                Image(systemName: "mic.circle.fill")
-                    .font(.system(size: 34))
-                    .foregroundColor(ColorPalette.current.accent)
-            }
-            .accessibilityLabel("Record voice note")
+//
+//            Button(action: { showingRecorder = true }) {
+//                Image(systemName: "mic.circle.fill")
+//                    .font(.system(size: 34))
+//                    .foregroundColor(ColorPalette.current.accent)
+//            }
+//            .accessibilityLabel("Record voice note")
         }
         .padding(.horizontal)
         .padding(.vertical, 8)

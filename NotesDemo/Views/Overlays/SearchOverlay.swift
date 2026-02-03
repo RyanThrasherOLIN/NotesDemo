@@ -21,6 +21,8 @@ struct SearchOverlay: View {
     @State private var showingRecorder: Bool = false
     @State private var feedbackGiven: Bool = false
     @State private var selectedFeedback: Int? = nil
+    
+    @AppStorage("username") var username: String?
 
     @FocusState private var isSearchFieldFocused: Bool
 
@@ -217,7 +219,7 @@ struct SearchOverlay: View {
         selectedFeedback = rating
         feedbackGiven = true
         if let resp = currentAnswer {
-            noteStore.submitFeedback(question: query, answer: resp.answer, isPair: rating == 1)
+            noteStore.submitFeedback(username: username ?? noteStore.deviceID, question: query, answer: resp.answer, isPair: rating == 1)
         }
     }
 

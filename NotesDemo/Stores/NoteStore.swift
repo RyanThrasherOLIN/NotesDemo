@@ -87,7 +87,7 @@ final class NoteStore: ObservableObject {
     /// ID of the note to highlight when opening a detail view
     @Published var highlightedNoteID: String? = nil
 
-    private var userID: String {
+    var deviceID: String {
         UIDevice.current.identifierForVendor!.uuidString
     }
 
@@ -105,7 +105,7 @@ final class NoteStore: ObservableObject {
     func prepopulateNotes(completion: (() -> Void)? = nil) {
         let endpoint = baseURL.appendingPathComponent("prepopulate_notes")
         var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)
-        comps?.queryItems = [URLQueryItem(name: "device_id", value: userID), URLQueryItem(name: "notes_file", value: "chat_gpt_assistive_notes.csv")]
+        comps?.queryItems = [URLQueryItem(name: "device_id", value: deviceID), URLQueryItem(name: "notes_file", value: "chat_gpt_assistive_notes.csv")]
         guard let url = comps?.url else { return }
 
         URLSession.shared.dataTask(with: url) { data, _, error in
@@ -131,7 +131,7 @@ final class NoteStore: ObservableObject {
 
         let endpoint = baseURL.appendingPathComponent("get_user_notes")
         var comps = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)
-        comps?.queryItems = [URLQueryItem(name: "device_id", value: userID)]
+        comps?.queryItems = [URLQueryItem(name: "device_id", value: deviceID)]
         guard let url = comps?.url else { return }
 
         URLSession.shared.dataTask(with: url) { data, _, error in
@@ -186,7 +186,7 @@ final class NoteStore: ObservableObject {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let payload = AddNoteRequest(device_id: userID, note: text, folder: folder, notebook: title)
+        let payload = AddNoteRequest(device_id: deviceID, note: text, folder: folder, notebook: title)
         guard let body = try? JSONEncoder().encode(payload) else {
             print("addNote encoding error")
             return
@@ -236,7 +236,7 @@ final class NoteStore: ObservableObject {
         req.httpMethod = "PUT"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let payload = UpdateNotePayload(device_id: userID, note_id: id, note: text)
+        let payload = UpdateNotePayload(device_id: deviceID, note_id: id, note: text)
         guard let body = try? JSONEncoder().encode(payload) else {
             print("syncSingleMessage encoding error")
             return
@@ -275,7 +275,7 @@ final class NoteStore: ObservableObject {
     func deleteNote(id: String, notebook: String, folder: String) {
         let endpoint = baseURL
             .appendingPathComponent("delete_note")
-            .appendingPathComponent(userID)
+            .appendingPathComponent(deviceID)
             .appendingPathComponent(id)
         var req = URLRequest(url: endpoint)
         req.httpMethod = "DELETE"
@@ -307,7 +307,7 @@ final class NoteStore: ObservableObject {
     func deleteAllNotes() {
         let endpoint = baseURL
             .appendingPathComponent("delete_user_notes")
-            .appendingPathComponent(userID)
+            .appendingPathComponent(deviceID)
         var req = URLRequest(url: endpoint)
         req.httpMethod = "DELETE"
 
@@ -335,7 +335,7 @@ final class NoteStore: ObservableObject {
         ids.forEach { noteID in
             let endpoint = baseURL
                 .appendingPathComponent("delete_note")
-                .appendingPathComponent(userID)
+                .appendingPathComponent(deviceID)
                 .appendingPathComponent(noteID)
             var req = URLRequest(url: endpoint)
             req.httpMethod = "DELETE"
@@ -357,7 +357,7 @@ final class NoteStore: ObservableObject {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let payload = GetResponseRequest(device_id: userID, question: question, k: String(k))
+        let payload = GetResponseRequest(device_id: deviceID, question: question, k: String(k))
         request.httpBody = try JSONEncoder().encode(payload)
         let (data, resp) = try await URLSession.shared.data(for: request)
         guard let http = resp as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
@@ -366,12 +366,12 @@ final class NoteStore: ObservableObject {
         return try JSONDecoder().decode([AIResponse].self, from: data)
     }
 
-    func submitFeedback(question: String, answer: String, isPair: Bool) {
+    func submitFeedback(username: String, question: String, answer: String, isPair: Bool) {
         let endpoint = baseURL.appendingPathComponent("submit_feedback")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let payload = SubmitFeedbackRequest(username: userID, question: question, answer: answer, is_pair: isPair)
+        let payload = SubmitFeedbackRequest(username: username, question: question, answer: answer, is_pair: isPair)
         request.httpBody = try? JSONEncoder().encode(payload)
         URLSession.shared.dataTask(with: request).resume()
     }

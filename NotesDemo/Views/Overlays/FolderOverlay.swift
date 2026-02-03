@@ -106,15 +106,15 @@ struct FolderOverlay: View {
                         }
                         .disabled(newFolderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .accessibilityLabel("Save folder")
-
-                        Button(action: { showingRecorder = true }) {
-                            Image(systemName: "mic.circle.fill")
-                                .font(.system(size: 34))
-                                .foregroundColor(ColorPalette.current.accent)
-                                .padding(8)
-                        }
-                        .accessibilityLabel("Record folder name")
-                        .accessibilityHint("Record and transcribe a new folder name")
+//
+//                        Button(action: { showingRecorder = true }) {
+//                            Image(systemName: "mic.circle.fill")
+//                                .font(.system(size: 34))
+//                                .foregroundColor(ColorPalette.current.accent)
+//                                .padding(8)
+//                        }
+//                        .accessibilityLabel("Record folder name")
+//                        .accessibilityHint("Record and transcribe a new folder name")
                     }
                 }
                 .padding(.horizontal, 16)
